@@ -12,7 +12,7 @@ const crypto = require('crypto');
 const extract = require('extract-zip');
 
 // ---- constants (filled in after the main app is built) ----
-const DOWNLOAD_URL = '';      // TODO: HTTPS URL of the main app green zip
+const DOWNLOAD_URL = 'https://github.com/JovanYoung/jovan-workplace/releases/download/0.0.0/Jovan.s.Workplace-0.0.0-win.zip';
 const EXPECTED_SHA256 = '282fcb66d6acf157ac30682a0078d433a44fab14dcb287c68e131b0d6ccf9715';
 const PRODUCT_NAME = "Jovan's Workplace";
 const EXE_NAME = "Jovan's Workplace.exe";

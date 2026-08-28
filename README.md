@@ -52,13 +52,18 @@ D:\Jovan's Workplace\
 - 默认数据目录：`D:\Jovan's Workplace\data`
 - 旧数据接管：`D:\dsh-data\workspace.json`
 
-## 六、⚠️ 待办（下载器上线前必做）
+## 六、🚀 发行状态
 
-1. **下载 URL 未填**：`installer\main.js` 顶部 `DOWNLOAD_URL` 为空。需把 `dist\Jovan's Workplace-0.0.0-win.zip` 上传到自管 HTTPS 服务器，填回 URL，然后重新打包下载器：
-   ```
-   cd installer && NODE_OPTIONS= npx electron-builder --win portable
-   ```
-2. SHA256 已内置（对应上面的 zip），重新打包主程序后需同步更新 `EXPECTED_SHA256`。
+- **v0.0.0 已发布**（2026-08-28）：https://github.com/JovanYoung/jovan-workplace/releases/tag/0.0.0
+- 下载器 `DOWNLOAD_URL` 已指向 GitHub Release 资产，SHA256 校验已内置
+- 正式 1.0.0 发行时更新版本号并重新上传 zip / 重打包下载器
+
+### 发行说明（必读）
+
+- **SmartScreen 弹窗**：未签名（个人项目），首次运行点「更多信息 → 仍要运行」
+- **杀毒软件可能误报**：Defender / 360 对未签名 Electron 应用误报属正常，选「允许运行」；不放心的用绿色 zip 方式
+- **系统要求**：Windows 10+，磁盘 ≥ 400MB
+- **AI 功能依赖本地桥**：一句话解析 / 翻译 / 提问 / Agent 走 `127.0.0.1:8787` / `3080`（dsh-bridge）；**数据读写完全本地化，不受影响**
 
 ## 七、回归测试清单（7 项）
 
