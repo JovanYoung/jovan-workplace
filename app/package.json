@@ -1,0 +1,38 @@
+{
+  "name": "jovans-workplace",
+  "productName": "Jovan's Workplace",
+  "version": "0.0.0",
+  "description": "Jovan's Workplace 个人效率工作台（桌面端）",
+  "main": "main.js",
+  "author": "Jovan Young",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win zip"
+  },
+  "devDependencies": {
+    "electron": "44.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.jovan.workplace",
+    "productName": "Jovan's Workplace",
+    "asar": true,
+    "directories": {
+      "output": "../dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "data.js",
+      "lib/**/*",
+      "assets/icon.png",
+      "assets/icon.ico",
+      "renderer/**/*"
+    ],
+    "win": {
+      "target": ["zip"],
+      "icon": "assets/icon.ico"
+    }
+  }
+}

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jovan's Workplace 安装向导</title>
+<style>
+  :root{
+    --orange:#f97316; --orange-d:#ea580c; --orange-l:#fff7ed;
+    --bg:#f6f1e7; --card:rgba(255,253,247,.82); --ink:#3b2f2a; --ink2:#8a7b70; --line:#eee5d8;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    color:var(--ink); background:var(--bg);
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(249,115,22,.10), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(249,115,22,.08), transparent 45%);
+    -webkit-user-select:none; user-select:none;
+    overflow:hidden;
+  }
+  .wrap{height:100vh; display:flex; flex-direction:column; padding:22px 26px;}
+  header{display:flex; align-items:center; gap:12px; margin-bottom:18px;}
+  .logo{width:44px;height:44px;border-radius:12px;object-fit:contain;background:#fff;padding:5px;box-shadow:0 4px 14px rgba(0,0,0,.06);}
+  .brand h1{font-size:17px;font-weight:700;letter-spacing:.5px;}
+  .brand p{font-size:12px;color:var(--ink2);margin-top:2px;}
+
+  .steps{display:flex; gap:8px; margin-bottom:20px;}
+  .step{flex:1; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink2);}
+  .step .dot{width:22px;height:22px;border-radius:50%;background:#fff;border:1.5px solid var(--line);color:var(--ink2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex:0 0 auto;transition:.2s;}
+  .step.active{color:var(--orange-d);}
+  .step.active .dot{background:var(--orange);border-color:var(--orange);color:#fff;}
+  .step.done .dot{background:var(--orange-l);border-color:var(--orange);color:var(--orange-d);}
+  .bar{flex:1;height:2px;background:var(--line);border-radius:2px;}
+
+  .card{flex:1; background:var(--card); border:1px solid rgba(255,255,255,.7); border-radius:18px; box-shadow:0 10px 40px rgba(120,90,60,.10); backdrop-filter:blur(14px); padding:24px; display:flex; flex-direction:column; overflow:hidden;}
+  .panel{display:none; flex-direction:column; flex:1;}
+  .panel.show{display:flex; animation:fade .28s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .p-title{font-size:16px;font-weight:700;margin-bottom:6px;}
+  .p-sub{font-size:12.5px;color:var(--ink2);margin-bottom:18px;line-height:1.6;}
+
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink2);margin-bottom:7px;}
+  .row{display:flex;gap:10px;}
+  .input{flex:1; height:40px; border:1.5px solid var(--line); border-radius:11px; padding:0 13px; font-size:13.5px; color:var(--ink); background:#fff; outline:none; transition:.15s;}
+  .input:focus{border-color:var(--orange); box-shadow:0 0 0 3px rgba(249,115,22,.12);}
+  .btn{border:none;border-radius:11px;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:600;transition:.15s;}
+  .btn-ghost{background:#fff;border:1.5px solid var(--line);color:var(--ink);height:40px;padding:0 16px;}
+  .btn-ghost:hover{border-color:var(--orange);color:var(--orange-d);}
+  .btn-primary{background:var(--orange);color:#fff;height:40px;padding:0 20px;}
+  .btn-primary:hover{background:var(--orange-d);}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+
+  .legacy{display:none; background:var(--orange-l); border:1px solid #fed7aa; border-radius:12px; padding:12px 14px; font-size:12.5px; color:#9a3412; margin-bottom:16px; line-height:1.6;}
+  .legacy.show{display:block; animation:fade .25s ease;}
+  .legacy b{font-weight:700;}
+  .legacy .take{margin-top:8px;}
+
+  .opt{display:flex; align-items:flex-start; gap:10px; padding:14px; border:1.5px solid var(--line); border-radius:13px; margin-bottom:14px; cursor:pointer; transition:.15s; background:#fff;}
+  .opt:hover{border-color:#fdba74;}
+  .opt.on{border-color:var(--orange); background:var(--orange-l);}
+  .opt input{width:18px;height:18px;accent-color:var(--orange);margin-top:2px;cursor:pointer;}
+  .opt .ot{font-size:13.5px;font-weight:600;}
+  .opt .od{font-size:12px;color:var(--ink2);margin-top:3px;line-height:1.5;}
+  .opt-body{flex:1;}
+  .api-wrap{display:none; margin-top:12px;}
+  .api-wrap.show{display:block; animation:fade .25s ease;}
+
+  .summary{background:#fff;border:1.5px solid var(--line);border-radius:13px;padding:14px 16px;font-size:13px;line-height:2;margin-bottom:16px;}
+  .summary b{color:var(--orange-d);}
+  .summary .k{color:var(--ink2);}
+
+  .progress{display:none; margin-top:6px;}
+  .progress.show{display:block;}
+  .progress .bar2{height:10px;background:var(--orange-l);border-radius:6px;overflow:hidden;}
+  .progress .fill{height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--orange-d));border-radius:6px;transition:width .25s;}
+  .progress .pt{font-size:12.5px;color:var(--ink2);margin-top:8px;text-align:center;}
+
+  .done{display:none; align-items:center; justify-content:center; flex-direction:column; flex:1; text-align:center;}
+  .done.show{display:flex; animation:fade .3s ease;}
+  .done .ic{width:64px;height:64px;border-radius:50%;background:var(--orange);color:#fff;font-size:32px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 8px 24px rgba(249,115,22,.3);}
+  .done h2{font-size:18px;margin-bottom:8px;}
+  .done p{font-size:13px;color:var(--ink2);line-height:1.7;margin-bottom:20px;}
+
+  footer{display:flex; justify-content:space-between; align-items:center; margin-top:18px;}
+  .foot-l{font-size:12px;color:var(--ink2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img class="logo" src="../assets/icon.png" alt="">
+    <div class="brand">
+      <h1>Jovan's Workplace 安装向导</h1>
+      <p>三步完成桌面端安装 · 数据完全本地</p>
+    </div>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="st1"><span class="dot">1</span>数据位置<div class="bar"></div></div>
+    <div class="step" id="st2"><span class="dot">2</span>云端备份<div class="bar"></div></div>
+    <div class="step" id="st3"><span class="dot">3</span>确认安装<div class="bar"></div></div>
+  </div>
+
+  <div class="card">
+    <!-- Step 1 -->
+    <div class="panel show" id="p1">
+      <div class="p-title">选择数据存储文件夹</div>
+      <div class="p-sub">你的所有日程、备忘、学习记录都保存在这个文件夹下的 workspace.json 文件里，删掉文件夹即等于清除数据。</div>
+      <div class="legacy" id="legacy">
+        <b>检测到旧数据</b>：<span id="legacyPath"></span><br>
+        这是你在网页版使用过的数据，可以一键接管、无缝迁移。
+        <div class="take"><button class="btn btn-ghost" id="takeLegacy" style="height:34px;padding:0 14px;font-size:12.5px;">一键接管旧数据</button></div>
+      </div>
+      <div class="field">
+        <label>数据文件夹</label>
+        <div class="row">
+          <input class="input" id="dataDir" readonly>
+          <button class="btn btn-ghost" id="browse">浏览…</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="panel" id="p2">
+      <div class="p-title">云端备份（ima）</div>
+      <div class="p-sub">可选。启用后每天自动把数据备份到腾讯 ima 知识库，换电脑也能找回。</div>
+      <div class="opt" id="optIma">
+        <input type="checkbox" id="imaCheck">
+        <div class="opt-body">
+          <div class="ot">启用 ima 云端备份</div>
+          <div class="od">API Key 仅加密保存在本机（Windows 凭据加密），绝不上传任何服务器。</div>
+          <div class="api-wrap" id="apiWrap">
+            <label style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px;display:block;">ima API Key</label>
+            <input class="input" id="imaKey" type="password" placeholder="粘贴你的 ima API Key" style="font-family:monospace;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="panel" id="p3">
+      <div class="p-title">确认并安装</div>
+      <div class="p-sub">将下载主程序（约 146 MB）并解压到用户目录（无需管理员权限），绿色安装、删文件夹即卸载。</div>
+      <div class="summary" id="summary">
+        <div><span class="k">数据文件夹：</span><b id="sData">—</b></div>
+        <div><span class="k">云端备份：</span><b id="sIma">未启用</b></div>
+        <div><span class="k">安装位置：</span><b id="sInstall">%LOCALAPPDATA%\Jovan's Workplace</b></div>
+      </div>
+      <div class="opt on" id="optShortcut" style="margin-bottom:16px;">
+        <input type="checkbox" id="shortcutCheck" checked>
+        <div class="opt-body">
+          <div class="ot">创建桌面快捷方式</div>
+          <div class="od">在桌面生成「Jovan's Workplace」快捷图标。</div>
+        </div>
+      </div>
+      <div class="progress" id="prog">
+        <div class="bar2"><div class="fill" id="fill"></div></div>
+        <div class="pt" id="ptext">准备中…</div>
+      </div>
+    </div>
+
+    <!-- Done -->
+    <div class="done" id="donePanel">
+      <div class="ic">✓</div>
+      <h2>安装完成</h2>
+      <p id="doneText">主程序已启动，正在系统托盘常驻。<br>关闭窗口会最小化到托盘，右键托盘图标可退出。</p>
+      <button class="btn btn-primary" id="finish" style="padding:0 32px;height:44px;">完成</button>
+    </div>
+  </div>
+
+  <footer>
+    <span class="foot-l" id="foot">第 1 步 / 共 3 步</span>
+    <div>
+      <button class="btn btn-ghost" id="prev" style="display:none;">上一步</button>
+      <button class="btn btn-primary" id="next">下一步</button>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var step = 0; // 0..2
+  var dataDir = '';
+  var legacyDetected = false;
+  var I = window.installer;
+
+  function $(id){ return document.getElementById(id); }
+  function setStep(n){
+    step = n;
+    for (var i=1;i<=3;i++){ $('p'+i).className = 'panel' + (i===n+1 ? ' show' : ''); }
+    for (var j=1;j<=3;j++){
+      var s = $('st'+j);
+      s.className = 'step' + (j===n+1?' active':(j<n+1?' done':''));
+    }
+    $('prev').style.display = (n===0||installing)?'none':'inline-block';
+    $('next').textContent = (n===2)?'开始安装':'下一步';
+    $('foot').textContent = '第 '+(n+1)+' 步 / 共 3 步';
+    if(n===2) buildSummary();
+  }
+  function buildSummary(){
+    $('sData').textContent = dataDir || '—';
+    $('sIma').textContent = $('imaCheck').checked ? '已启用' : '未启用';
+  }
+
+  // init defaults
+  I.defaults().then(function(d){
+    dataDir = d.defaultDataDir;
+    $('dataDir').value = dataDir;
+    I.checkLegacy().then(function(r){
+      if(r.exists){ legacyDetected = true; $('legacyPath').textContent = r.path; $('legacy').className='legacy show'; }
+    });
+  });
+
+  $('browse').onclick = function(){
+    I.selectDir().then(function(p){ if(p){ dataDir = p; $('dataDir').value = p; } });
+  };
+  $('takeLegacy').onclick = function(){
+    I.checkLegacy().then(function(r){
+      if(r.path){ dataDir = r.path.replace(/workspace\.json$/i,''); dataDir = dataDir.replace(/[\\\/]$/,'') || dataDir; $('dataDir').value = dataDir; }
+      $('legacy').className='legacy';
+      toast('已接管旧数据文件夹');
+    });
+  };
+
+  // ima toggle
+  $('imaCheck').onchange = function(){
+    var on = $('imaCheck').checked;
+    $('optIma').className = 'opt' + (on?' on':'');
+    $('apiWrap').className = 'api-wrap' + (on?' show':'');
+  };
+
+  var installing = false;
+  $('next').onclick = function(){
+    if(installing) return;
+    if(step < 2){ setStep(step+1); return; }
+    // start install
+    if(!dataDir){ toast('请先选择数据文件夹'); return; }
+    installing = true;
+    $('next').disabled = true; $('prev').disabled = true;
+    $('prog').className = 'progress show';
+    setFill(0,'准备中…');
+    I.install({
+      dataDir: dataDir,
+      imaKey: $('imaCheck').checked ? $('imaKey').value : '',
+      createShortcut: $('shortcutCheck').checked
+    }).then(function(r){
+      installing = false;
+      if(r && r.ok){
+        setFill(100,'完成');
+        $('donePanel').className = 'done show';
+        $('next').style.display='none'; $('prev').style.display='none';
+        $('foot').textContent = '安装完成';
+      } else {
+        $('next').disabled = false; $('prev').disabled = false;
+        $('ptext').textContent = '安装失败：' + ((r&&r.error)||'未知错误');
+        $('prog').className = 'progress';
+        toast('安装失败：' + ((r&&r.error)||'未知错误'));
+      }
+    });
+  };
+  $('prev').onclick = function(){ if(!installing && step>0) setStep(step-1); };
+  $('finish').onclick = function(){ window.close(); };
+
+  I.onProgress(function(p){
+    setFill(p.percent||0, p.text||'');
+  });
+
+  function setFill(pct, text){
+    $('fill').style.width = pct + '%';
+    if(text) $('ptext').textContent = text;
+  }
+
+  var toastTimer=null;
+  function toast(msg){
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;left:50%;bottom:76px;transform:translateX(-50%);background:rgba(59,47,42,.92);color:#fff;padding:9px 18px;border-radius:22px;font-size:13px;z-index:99;max-width:80%;box-shadow:0 6px 20px rgba(0,0,0,.18);';
+    document.body.appendChild(t);
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 2600);
+  }
+})();
+</script>
+</body>
+</html>

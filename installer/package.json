@@ -1,0 +1,41 @@
+{
+  "name": "jovans-workplace-installer",
+  "productName": "Jovan's Workplace 安装向导",
+  "version": "0.0.0",
+  "description": "Jovan's Workplace 桌面端下载器（三步引导）",
+  "main": "main.js",
+  "author": "Jovan Young",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "44.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1"
+  },
+  "build": {
+    "appId": "com.jovan.workplace.installer",
+    "productName": "Jovan's Workplace 安装向导",
+    "asar": true,
+    "directories": {
+      "output": "../dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": ["portable"],
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Jovans-Workplace-Installer-${version}.exe"
+    }
+  }
+}
