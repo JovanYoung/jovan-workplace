@@ -1,125 +1,138 @@
-# Jovan's Workplace 桌面端 · 交付说明
+# Jovan's Workplace · 个人 AI 工作台
 
-> **Architecture B：下载器 + 主程序分离 · Electron 封装 · 数据本地化 · 绿色 zip 解压即用**
-> Architecture B: Bootstrap installer + standalone app · Electron · local-first data · portable green zip.
+> **本地优先 · 数据不出本机 · 一句话添加日程**
+> Local-first AI personal workspace — your data stays on your disk.
 
----
-
-## 一、交付产物 / Deliverables
-
-产物位于 `dist/`：
-
-| 文件 / File | 说明 / Description | 大小 / Size |
-|---|---|---|
-| `dist\Jovan's Workplace-0.0.0-win.zip` | 主程序绿色 zip，解压双击即用 / Portable main app, unzip & run | 146 MB |
-| `dist\Jovans-Workplace-Installer-0.0.0.exe` | 下载器：三步引导安装 / Bootstrap installer: 3-step guided setup | 96 MB |
-
-**主程序 SHA256**（已内置下载器校验）：
-`282fcb66d6acf157ac30682a0078d433a44fab14dcb287c68e131b0d6ccf9715`
+<p align="center">
+  <a href="#中文指南" style="display:inline-block;padding:6px 18px;margin:0 6px;border-radius:999px;background:#f97316;color:#fff;text-decoration:none;font-weight:600">🇨🇳 中文指南</a>
+  <a href="#english-guide" style="display:inline-block;padding:6px 18px;margin:0 6px;border-radius:999px;border:1px solid #31595a;color:#31595a;text-decoration:none;font-weight:600">🇬🇧 English Guide</a>
+</p>
 
 ---
 
-## 二、启动方式 / Getting Started
+## 中文指南
+
+<a id="中文指南"></a>
+
+### 🎉 欢迎
+
+Jovan's Workplace 是一个**完全本地、数据由你掌控**的个人效率工作台：四象限待办、日程管理、随手备忘、学习记录、亲友画像，加上**一句话智能添加**——像聊天一样把你的安排变成日程。
+
+### ⬇️ 安装
 
 | 方式 | 操作 |
 |---|---|
-| **A · 下载器（推荐）** | 双击 `Jovans-Workplace-Installer-0.0.0.exe` → 三步引导（选数据位置 → 可选 ima 云备份 → 安装 + 桌面快捷方式）→ 自动从 GitHub Release 下载主程序 → SHA256 校验 → 解压 → 启动 |
-| **B · 绿色直用** | 解压 `Jovan's Workplace-0.0.0-win.zip` → 双击 `Jovan's Workplace.exe`。首次运行弹「选择数据存储文件夹」；检测到 `D:\dsh-data\workspace.json` 时提示「一键接管旧数据」 |
+| **下载器（推荐）** | 双击 `Jovans-Workplace-Installer-0.0.0.exe` → 三步引导：① 选数据存放位置 ②（可选）开启 ima 云备份 ③ 安装 + 桌面快捷方式 |
+| **绿色直用** | 解压 `Jovan's Workplace-0.0.0-win.zip` → 双击 `Jovan's Workplace.exe` |
 
-> **English:** A) Run the installer EXE for a guided 3-step setup (choose data dir → optional ima cloud backup → install & launch). B) Portable: unzip the green zip and double-click the EXE; on first run it prompts for a data folder and offers to adopt legacy data at `D:\dsh-data\workspace.json`.
+> ⚠️ **首次运行必读**：应用未做代码签名（个人项目），Windows 会提示「未知发布者」→ 点 **更多信息 → 仍要运行** 即可；个别杀毒软件可能误报，选择「允许运行」即可（不放心的可用绿色 zip 方式）。系统要求：**Windows 10 及以上**。
 
----
+### 🧭 快速上手（五大模块）
 
-## 三、源码目录结构 / Source Layout
+#### 📋 今日 —— 四象限待办
+按「紧急且重要 / 紧急不重要 / 重要不紧急 / 都不重要」四象限组织当天要事，**红色优先处理**。点击卡片可完成、查看详情或编辑。
 
-```
-D:\Jovan's Workplace\
-├── app\                      # 主程序（Electron）/ Main app
-│   ├── main.js               # 主进程：单实例锁 / 托盘 / 数据目录选择 / ima key 管理 / IPC
-│   ├── preload.js            # contextBridge：暴露 window.workplace
-│   ├── data.js               # 数据层：原子写入 / 快照 / 备份 30 份 / 农历 / ima 备份
-│   ├── renderer\index.html   # 页面（SDK 已移除，数据走 contextBridge）
-│   ├── lib\lunar.js          # 农历库（lunar-javascript）
-│   └── assets\               # icon.png / icon.ico
-├── installer\                # 下载器（Electron，三步引导）/ Bootstrap installer
-│   ├── main.js               # 下载 / SHA256 校验 / 解压 / 快捷方式 / 启动
-│   ├── preload.js
-│   └── renderer\index.html   # 三步引导 UI
-└── dist\                     # 打包产物 / Build outputs
-```
+#### 📅 日程与任务 —— 四种视图
+- **日视图**（默认）：当天全部事件按优先级排列 → 0-24 时间轴 → 未设置时段的事件单独列表，可随时补设时段
+- **周视图**：整周分布一目了然，单击选中、**双击某天进入日视图**
+- **日历**：按月浏览，单击选中日期、双击进入日视图
+- **列表**：按时间顺序平铺
 
-> **English:** `app/` is the Electron main app (main process: single-instance lock, tray, data-dir picker, ima key via safeStorage, IPC; preload exposes `window.workplace`; data layer in `data.js`). `installer/` is the bootstrap installer (download, SHA256 verify, extract, shortcut, launch). `dist/` holds build outputs.
+> 💡 添加时在「详情」里写 `15:00-16:00` 或 `下午3点`，事件会自动进时间轴；填「地点」字段（如：图书馆三楼），事件卡上会显示 📍 位置。
 
----
+#### 📝 备忘 —— 老忘记的事儿 + 亲友画像
+- **老忘记的事儿**：随手记那些总忘的事
+- **亲友画像**：记录亲友的**忌口 / 雷点 / 喜好 / 生日**（生日自动提醒）
 
-## 四、数据层设计 / Data Layer
+#### 🎓 学习
+- **校内**：按 学期 → 科目 → 笔记 / 课件（tut / lect）组织；课件支持翻译与提问
+- **校外备考**：独立空间，按标签管理
 
-已定稿决策的落地实现：
+#### 🤖 一句话添加
+顶部输入框直接说：`周五交计网作业，紧急` → 自动解析日期、时间、优先级，一键入库。解析拿不准时点「AI 深度解析」兜底。
 
-| 决策 / Decision | 实现 / Implementation |
+### ⚙️ 设置
+
+- **外观**：主题三档（跟随系统 / 浅色 / 深色）、导航栏四位置（上 / 左 / 右 / 下）、内容宽度
+- **快捷键**：全部可自定义（快速添加、五个模块切换、Esc），点「修改」后直接按下新组合键录制
+- **数据**：立即备份 / 导出 JSON / 导入恢复 / ima 云备份开关
+- **系统**：操作日志（自动留痕 1 年）、回收站（30 天内可恢复）
+
+### 🔒 数据与隐私
+
+- 数据 100% 存在**你选的本地文件夹**（`workspace.json`），不依赖任何云服务
+- **原子写入**防文件损坏 + 写入前快照（10 份）+ **每日自动备份**（保留 30 份）
+- ima 云备份**默认关闭**，开启后 API Key 用系统加密只存本地，绝不上传
+- 旧版数据（`D:\dsh-data`）首次运行可**一键接管**，无缝迁移
+- 农历 / 生日完全本地计算
+
+### ❓ 常见问题
+
+| 问题 | 解决 |
 |---|---|
-| 数据文件 / Data file | `{数据目录}\workspace.json`，与旧版格式完全一致（`rows` 数组），旧数据无缝迁移 / Same format as legacy; seamless migration |
-| 原子写入 / Atomic write | 先写 `.tmp` 再 rename 覆盖 / Write `.tmp` then rename |
-| 自动快照 / Snapshots | 每次写入前快照至 `snapshots\`，保留最近 10 份 / Pre-write snapshot, keep latest 10 |
-| 每日备份 / Daily backup | 每天首次写入备份至 `backups\workspace-YYYY-MM-DD.json`，保留最近 30 份 / Keep latest 30 |
-| 单实例锁 / Single instance | 二次启动仅聚焦已有窗口 / Second launch focuses existing window |
-| 窗口行为 / Window | 关闭 = 最小化到托盘（菜单「打开/退出」）/ Close → tray, menu Open/Quit |
-| ima API Key | `safeStorage`（Windows DPAPI）加密存 `%APPDATA%\Jovan's Workplace\ima.json`，只存本地、绝不外发 / DPAPI-encrypted, local-only |
+| 打开弹「未知发布者」？ | 点「更多信息 → 仍要运行」（未签名，正常现象）|
+| 杀毒软件报毒？ | 未签名 Electron 应用常见误报，选「允许运行」；或改用绿色 zip |
+| AI 功能没反应？ | 一句话解析 / 翻译 / 课件提问 / Agent 需先启动本地服务 dsh-bridge（`127.0.0.1:8787` / `3080`）；**数据读写不受影响** |
+| 换电脑数据怎么办？ | 设置 → 数据 → 导出 JSON，新电脑导入恢复；或开启 ima 云备份 |
+| 装不上 / 打不开？ | 确认 Windows 10+、磁盘 ≥ 400MB、SmartScreen 已放行 |
 
-> **English:** Data is written atomically (tmp + rename) to `workspace.json` with pre-write snapshots (10) and daily backups (30). Single-instance lock and tray residency are enforced. The ima API key is encrypted via OS DPAPI and never leaves the machine.
+### 📦 版本
+
+- 当前版本：**v0.0.0**（2026-08-28 首发）
+- 下载：**[GitHub Releases](https://github.com/JovanYoung/jovan-workplace/releases)**（zip 校验 SHA256 已内置下载器）
 
 ---
 
-## 五、数据目录与配置 / Data & Config
+## English Guide
 
-| 项 / Item | 路径 / Path |
+<a id="english-guide"></a>
+
+### 🎉 Welcome
+
+Jovan's Workplace is a **fully local, data-you-own** productivity workspace: a 4-quadrant task board, schedules, quick memos, study notes, family profiles — plus **one-sentence AI capture**: type naturally and it becomes a schedule item.
+
+### ⬇️ Install
+
+| Method | Steps |
 |---|---|
-| 主程序配置 / App config | `%APPDATA%\Jovan's Workplace\config.json`（`{"dataDir": "..."}`）|
-| 默认数据目录 / Default data dir | `D:\Jovan's Workplace\data` |
-| 旧数据接管 / Legacy adoption | `D:\dsh-data\workspace.json`（首次运行可选接管）|
+| **Installer (recommended)** | Run `Jovans-Workplace-Installer-0.0.0.exe` → 3-step setup: ① pick data folder ② (optional) enable ima cloud backup ③ install + desktop shortcut |
+| **Portable** | Unzip `Jovan's Workplace-0.0.0-win.zip` → double-click `Jovan's Workplace.exe` |
+
+> ⚠️ **Before first run**: the app is **unsigned** (personal project), so Windows will show an "Unknown publisher" prompt — click **More info → Run anyway**. Some antivirus tools may flag unsigned Electron apps; choose "Allow". **Requires Windows 10+.**
+
+### 🧭 Modules
+
+- **📋 Today** — 4-quadrant tasks (urgent × important); red items first. Click a card to complete / view / edit.
+- **📅 Schedule & Tasks** — four views: **Day** (priority event cards → 0-24 timeline → un-timed events, editable), **Week** (single-click select, **double-click to open a day**), **Month** (calendar grid, same click/double-click), **List** (chronological).
+  - 💡 Write `15:00-16:00` or `3pm` in the details to pin an event to the timeline; add a **location** (e.g. Library, 3F) to show a 📍 marker.
+- **📝 Memos** — "Things I keep forgetting" + **family profiles** (allergies, pet peeves, favorites, birthdays with auto-reminders).
+- **🎓 Study** — on-campus (semester → course → notes/slides, tut·lect) + off-campus exam prep with tags; slides support translation & Q&A.
+- **🤖 One-sentence capture** — e.g. `Homework due Friday, urgent` → auto-parses date, time, priority. Fall back to "AI deep parse" when unsure.
+- **⚙️ Settings** — theme (system/light/dark), nav position (top/left/right/bottom), fully customizable shortcuts (recording-style), data (backup/export/import), logs & trash (30-day recovery).
+
+### 🔒 Data & Privacy
+
+- Data lives **100% on your chosen local folder** (`workspace.json`); no cloud dependency.
+- Atomic writes (anti-corruption) + pre-write snapshots (10) + **daily backups (keep 30)**.
+- ima cloud backup **off by default**; if enabled, the API key is encrypted locally and **never uploaded**.
+- Legacy data at `D:\dsh-data` can be **adopted in one click** on first run.
+- Lunar calendar & birthdays computed fully offline.
+
+### ❓ FAQ
+
+| Issue | Fix |
+|---|---|
+| "Unknown publisher" prompt? | More info → Run anyway (unsigned, expected) |
+| Antivirus flags the app? | Common false positive for unsigned Electron; allow it, or use the portable zip |
+| AI features not working? | One-sentence parse / translation / slide Q&A / Agent need the local dsh-bridge (`127.0.0.1:8787` / `3080`); **data I/O is unaffected** |
+| Switching computers? | Settings → Data → Export JSON, then Import on the new machine; or enable ima cloud backup |
+| Won't install / open? | Ensure Windows 10+, ≥400MB free disk, SmartScreen allowed |
+
+### 📦 Version
+
+- Current: **v0.0.0** (first release, 2026-08-28)
+- Download: **[GitHub Releases](https://github.com/JovanYoung/jovan-workplace/releases)** (SHA256 auto-verified by the installer)
 
 ---
 
-## 六、发行状态 / Release Status
-
-- **v0.0.0 已发布（2026-08-28）** / Released: https://github.com/JovanYoung/jovan-workplace/releases/tag/0.0.0
-- 下载器 `DOWNLOAD_URL` 已指向 GitHub Release 资产，SHA256 已内置 / Installer points to the GitHub Release asset; SHA256 embedded
-- 正式 1.0.0 发行时：更新版本号 → 重传 zip → 重打包下载器 / For 1.0.0: bump version, re-upload zip, rebuild installer
-
-### 发行必读 / Release Notes (must-read)
-
-- **SmartScreen 弹窗**：未签名（个人项目），首次运行点「更多信息 → 仍要运行」/ Unsigned; click "More info → Run anyway"
-- **杀软误报**：Defender / 360 可能误报未签名 Electron 应用，选择「允许运行」；不放心的用绿色 zip / Possible AV false positives; prefer the green zip if concerned
-- **系统要求**：Windows 10+，磁盘 ≥ 400MB / Windows 10+, ≥400MB free disk
-- **AI 功能依赖本地桥**：一句话解析 / 翻译 / 提问 / Agent 走 `127.0.0.1:8787` / `3080`（dsh-bridge）；**数据读写完全本地化，不受影响** / AI features require the local dsh-bridge; **data I/O is fully local and unaffected**
-
----
-
-## 七、回归测试清单 / Regression Checklist
-
-| # | 项 / Item | 状态 / Status |
-|---|---|---|
-| 1 | 数据增删改查 / CRUD | ✅ 数据层自动化通过 / Auto-tested (test-data.js) |
-| 2 | 回收站 / Trash | ✅ 逻辑在数据层（删除留痕，30 天清理）/ In data layer |
-| 3 | 操作日志 / Logs | ✅ 自动化通过（add/update/delete 留痕）|
-| 4 | 备份 / Backups | ✅ 自动化通过（快照 + 每日 30 份轮换）|
-| 5 | 导出导入 / Export-Import | ✅ 已改 `showSaveDialog`/`showOpenDialog`，数据层通过 |
-| 6 | 学习模块 / Study | ⚠️ 未 GUI 实测，需桌面环境手动过一遍 / Manual GUI test pending |
-| 7 | Agent | ⚠️ 依赖本地桥 `127.0.0.1:3080`（DeepSeek Harness）|
-
-> **English:** Items 1–5 pass automated data-layer tests. Items 6–7 need a manual GUI pass on the desktop (study module; Agent requires the local DeepSeek Harness bridge on :3080).
-
----
-
-## 八、关键说明 / Notes
-
-- **AI 能力仍依赖本地桥**：一句话解析 / 翻译 / 提问 / Agent 走 `127.0.0.1:8787` 与 `3080`（dsh-bridge），需自行启动；**数据读写已完全本地化**（Electron 主进程直写，不依赖桥）
-- **农历 / 生日**：内置 lunar-javascript，完全本地计算 / Lunar & birthday math is fully local
-- 未做代码签名，SmartScreen 会弹「未知发布者」/ Unsigned; SmartScreen warning expected
-- 开发机测试时若遇 `ELECTRON_RUN_AS_NODE=1` 或 GPU 报错，属 IDE/远程沙盒环境注入，真实桌面双击运行不受影响 / Sandbox-only artifacts; unaffected on a real desktop
-
-> **English:** AI parsing/translation/Agent still route through the local dsh-bridge (:8787/:3080); data I/O is fully local. Lunar/birthday math is bundled. The app is unsigned (SmartScreen warning expected). `ELECTRON_RUN_AS_NODE`/GPU errors are sandbox-injected and don't occur on a real desktop.
-
----
-
-*Jovan's Workplace · v0.0.0 · 交付日期 2026-08-28*
+*Made with ❤️ by JovanYoung · Local-first, always.*
