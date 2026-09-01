@@ -25,6 +25,7 @@
       "main.js",
       "preload.js",
       "data.js",
+      "ai.js",
       "lib/**/*",
       "assets/icon.png",
       "assets/icon.ico",

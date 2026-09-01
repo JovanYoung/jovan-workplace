@@ -113,6 +113,33 @@ body.nav-bottom #bottomTabs{display:none}
 .dot:hover{transform:scale(1.35)}
 .dot.ok{background:#34D399}.dot.busy{background:#FBBF24}.dot.off{background:#F87171}
 
+/* AI 模型面板（设置） */
+.ai-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--g1)}
+.ai-row:last-child{border-bottom:none}
+.ai-cell-name{width:110px;flex-shrink:0;min-width:0}
+.ai-name{font-size:13px;color:var(--ink2);font-weight:500;line-height:1.3}
+.ai-remark{font-size:11px;color:var(--g4);line-height:1.3}
+.ai-key-input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--g2);border-radius:8px;background:var(--surface);color:var(--ink);font-size:13px}
+.ai-key-input:focus{outline:none;border-color:var(--orange)}
+.ai-status{width:10px;height:10px;border-radius:50%;background:var(--g4);flex-shrink:0}
+.ai-status.ok{background:#34D399}.ai-status.busy{background:#FBBF24}.ai-status.off{background:#F87171}
+
+/* Agent 内置对话框 */
+.chat-wrap{display:flex;flex-direction:column;height:64vh;min-height:380px}
+.chat-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.chat-select{min-width:200px;max-width:280px;padding:8px 10px;border:1px solid var(--g2);border-radius:8px;background:var(--surface);color:var(--ink);font-size:13px}
+.chat-select:focus{outline:none;border-color:var(--orange)}
+.chat-log{flex:1;overflow-y:auto;border:1px solid var(--g1);border-radius:12px;background:var(--surface);padding:14px;display:flex;flex-direction:column;gap:10px}
+.chat-msg{max-width:82%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.chat-msg.user{align-self:flex-end;background:var(--orange);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.ai{align-self:flex-start;background:var(--g1);color:var(--ink);border-bottom-left-radius:4px}
+.chat-empty{color:var(--g4);font-size:13px;text-align:center;margin:auto}
+.chat-input-row{display:flex;gap:10px;margin-top:10px;align-items:flex-end}
+.chat-input{flex:1;min-width:0;padding:10px 12px;border:1px solid var(--g2);border-radius:10px;background:var(--surface);color:var(--ink);resize:none;font-size:14px;min-height:44px;line-height:1.5}
+.chat-input:focus{outline:none;border-color:var(--orange)}
+.chat-meta{font-size:12px;color:var(--g4);margin-top:8px;text-align:right;min-height:18px}
+.chat-meta b{color:var(--orange-d);font-weight:500}
+
 .main{flex:1;min-width:0;padding:22px 26px 40px;max-width:1100px;margin:0 auto;width:100%}
 .topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 .page-title{font-size:20px;font-weight:500}
@@ -712,24 +739,22 @@ textarea.f-input{resize:vertical;min-height:76px}
         <div class="card-title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/><path d="M19 15l.9 2.6L22.5 18.5l-2.6.9L19 22l-.9-2.6-2.6-.9 2.6-.9z"/></svg>
           个人 Agent
-          <span class="hint">由 DeepSeek Harness (dsh) 驱动 · 本地 127.0.0.1:3080</span>
+          <span class="hint">内置 AI 网关 · 在设置里填 API Key 即可使用</span>
         </div>
-        <div class="agent-launch">
-          <button class="btn btn-primary" id="agentOpenBtn" style="padding:12px 26px;font-size:15px">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-            打开 Agent 控制台（新窗口）
-          </button>
-          <div class="agent-hint">由 DeepSeek Harness 驱动 · 127.0.0.1:3080 · 服务未运行请先双击 D:\dsh-bridge\start-dsh.bat</div>
-        </div>
-        <div class="agent-tip" id="agentTip" style="display:none">
-          <div style="display:flex;align-items:center;gap:10px">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <span>Agent 服务未启动。请双击运行 <b style="font-family:monospace">D:\dsh-bridge\start-dsh.bat</b> 后回来。</span>
+        <div class="chat-wrap">
+          <div class="chat-toolbar">
+            <span class="set-label">模型</span>
+            <select class="chat-select" id="chatModelSel"><option value="">未配置模型</option></select>
+            <button class="btn btn-sm btn-ghost" id="chatClear">清空对话</button>
           </div>
-        </div>
-        <div id="agentFrameWrap" style="display:none">
-          <div style="font-size:12px;color:var(--g4);margin-bottom:6px">内嵌视图（本地安全环境自动启用）：</div>
-          <iframe id="agentFrame" src="http://127.0.0.1:3080/" style="width:100%;height:68vh;border:none;border-radius:12px;background:#fff" title="DeepSeek Harness Agent"></iframe>
+          <div class="chat-log" id="chatLog">
+            <div class="chat-empty">在下方输入问题开始对话（流式回复，结束显示 token 用量与费用）</div>
+          </div>
+          <div class="chat-input-row">
+            <textarea class="chat-input" id="chatInput" placeholder="输入消息，Enter 发送 / Shift+Enter 换行" rows="1"></textarea>
+            <button class="btn btn-primary" id="chatSend" style="padding:12px 20px">发送</button>
+          </div>
+          <div class="chat-meta" id="chatMeta"></div>
         </div>
       </div>
     </section>
@@ -1007,6 +1032,7 @@ textarea.f-input{resize:vertical;min-height:76px}
       <div class="settings-side">
         <button class="set-nav active" data-panel="appearance">外观</button>
         <button class="set-nav" data-panel="data">数据</button>
+        <button class="set-nav" data-panel="aimodel">AI 模型</button>
         <button class="set-nav" data-panel="logs">操作日志</button>
         <button class="set-nav" data-panel="trash">回收站</button>
         <button class="set-nav" data-panel="parse">智能解析</button>
@@ -1054,6 +1080,10 @@ textarea.f-input{resize:vertical;min-height:76px}
             <button class="btn btn-sm btn-ghost" data-act="set-export">导出 JSON</button>
             <button class="btn btn-sm btn-ghost" data-act="set-import">导入恢复</button>
           </div>
+        </div>
+        <div class="set-panel" id="panel-aimodel" style="display:none">
+          <div class="set-title">AI 模型<span style="font-weight:400;margin-left:6px">填入 API Key 即可使用 · Key 仅本机加密存储，不上传</span></div>
+          <div id="aiProviderList"></div>
         </div>
         <div class="set-panel" id="panel-logs" style="display:none">
           <div class="set-title">操作日志<span style="font-weight:400;margin-left:6px">自动保留 1 年</span></div>
@@ -3014,6 +3044,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(panel==='logs') renderLogs();
     if(panel==='trash') renderTrash();
     if(panel==='shortcut') renderShortcutPanel();
+    if(panel==='aimodel') renderAiProviders();
   }
   function openSettings(){
     if(hasWP){ window.workplace.getDataPath().then(function(p){ var el=$('setDataPath'); if(el&&p) el.textContent=p.dataFile; }); }
@@ -3427,7 +3458,6 @@ textarea.f-input{resize:vertical;min-height:76px}
         if(bid==='qMic'){ startSpeech(); return; }
         if(bid==='qParse'){ doParse(); return; }
         if(bid==='qAI'){ aiParse(); return; }
-        if(bid==='agentOpenBtn'){ window.open('http://127.0.0.1:3080','_blank'); return; }
         if(bid==='confirmOk'){ confirmAdd(); return; }
         if(bid==='aiDeepBtn'){ aiParse(); return; }
         if(bid==='confirmCancel'||bid==='confirmClose'){ cancelConfirm(); return; }
@@ -3516,21 +3546,190 @@ textarea.f-input{resize:vertical;min-height:76px}
   }
   var lastRefresh=0;
   function checkAgent(){
-    var wrap=$('agentFrameWrap'), tip=$('agentTip');
-    if(!wrap) return;
-    if(location.protocol==='https:'){
-      wrap.style.display='none';
-      if(tip) tip.style.display='none';
+    // Built-in AI gateway: refresh providers + model list when entering the Agent tab.
+    if(aiAvailable()) loadAiProviders();
+  }
+
+  // ---- built-in AI gateway (renderer) ----
+  var AI_PROVIDERS = [];
+  var chatHistory = [];
+  var chatAiEl = null;
+
+  function aiAvailable(){ return hasWP && window.workplace && window.workplace.aiListProviders; }
+
+  function loadAiProviders(){
+    renderAiProviders();
+    if(!aiAvailable()){ renderChatModelSel(); return; }
+    window.workplace.aiListProviders().then(function(j){
+      AI_PROVIDERS = (j && j.providers) || [];
+      renderAiProviders();
+      renderChatModelSel();
+    }).catch(function(){ AI_PROVIDERS = []; renderAiProviders(); renderChatModelSel(); });
+  }
+
+  function renderAiProviders(){
+    var box = $('aiProviderList');
+    if(!box) return;
+    if(!aiAvailable()){
+      box.innerHTML = '<div class="set-row"><span class="set-val">仅桌面版支持（需 Electron 内置 AI 网关）</span></div>';
       return;
     }
-    fetch('http://127.0.0.1:3080/',{mode:'no-cors'}).then(function(){
-      wrap.style.display='block';
-      if(tip) tip.style.display='none';
-    }).catch(function(){
-      wrap.style.display='none';
-      if(tip) tip.style.display='block';
+    if(!AI_PROVIDERS.length){
+      box.innerHTML = '<div class="set-row"><span class="set-val">加载中…</span></div>';
+      return;
+    }
+    var h = '';
+    AI_PROVIDERS.forEach(function(p){
+      h += '<div class="ai-row" data-provider="' + esc(p.id) + '">';
+      h += '<div class="ai-cell-name"><div class="ai-name">' + esc(p.name) + '</div><div class="ai-remark">' + esc(p.remark || '') + '</div></div>';
+      h += '<input type="password" class="ai-key-input" data-provider="' + esc(p.id) + '" autocomplete="off" placeholder="' + (p.configured ? '已配置（可重新填写）' : (p.id === 'ollama' ? '本地无需 Key' : '粘贴 API Key')) + '">';
+      h += '<button class="btn btn-sm btn-primary ai-test-btn" data-provider="' + esc(p.id) + '">测试</button>';
+      h += '<button class="btn btn-sm btn-ghost ai-save-btn" data-provider="' + esc(p.id) + '">保存</button>';
+      h += '<span class="ai-status ' + (p.configured ? 'ok' : 'off') + '" data-status="' + esc(p.id) + '" title="' + (p.configured ? '已配置' : '未配置') + '"></span>';
+      h += '</div>';
+    });
+    box.innerHTML = h;
+  }
+
+  function renderChatModelSel(){
+    var sel = $('chatModelSel');
+    if(!sel) return;
+    var opts = [];
+    AI_PROVIDERS.forEach(function(p){
+      if(!p.configured) return;
+      (p.models || []).forEach(function(m){
+        opts.push({ label: p.name + ' · ' + m.name + (m.vision ? '（视觉）' : ''), value: p.id + '|' + m.name });
+      });
+    });
+    if(!opts.length){ sel.innerHTML = '<option value="">未配置模型</option>'; return; }
+    sel.innerHTML = opts.map(function(o){ return '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>'; }).join('');
+  }
+
+  function appendChatMsg(role, text){
+    var log = $('chatLog');
+    if(!log) return null;
+    var empty = log.querySelector('.chat-empty');
+    if(empty) empty.remove();
+    var el = document.createElement('div');
+    el.className = 'chat-msg ' + role;
+    el.textContent = text;
+    log.appendChild(el);
+    chatLogScroll();
+    return el;
+  }
+  function chatLogScroll(){ var log = $('chatLog'); if(log) log.scrollTop = log.scrollHeight; }
+  function fmtRmb(n){
+    if(n === null || n === undefined) return '0.0000';
+    if(n > 0 && n < 0.0001) return '<0.0001';
+    return n.toFixed(4);
+  }
+  function setChatMetaText(t){ var el = $('chatMeta'); if(el) el.textContent = t || ''; }
+  function setChatMeta(usage, cost){
+    var el = $('chatMeta');
+    if(!el) return;
+    if(usage && usage.total > 0){
+      el.innerHTML = '本次用量：input <b>' + usage.input + '</b> · output <b>' + usage.output + '</b> tokens · 费用 <b>¥' + fmtRmb(cost && cost.rmb) + '</b>';
+    } else {
+      el.innerHTML = '';
+    }
+  }
+
+  function chatSend(){
+    if(!aiAvailable()){ toast('仅桌面版支持（需 Electron 内置 AI 网关）'); return; }
+    var sel = $('chatModelSel');
+    var val = sel.value;
+    if(!val){ toast('请先在 设置 → AI 模型 配置 API Key'); return; }
+    var parts = val.split('|');
+    var provider = parts[0], model = parts[1];
+    var input = $('chatInput');
+    var text = (input.value || '').trim();
+    if(!text) return;
+    input.value = '';
+    chatHistory.push({ role: 'user', content: text });
+    appendChatMsg('user', text);
+    chatAiEl = appendChatMsg('ai', '');
+    setChatMetaText('回复中…');
+    var btn = $('chatSend');
+    btn.disabled = true; btn.textContent = '回复中…';
+    var acc = '';
+    window.workplace.aiChat(provider, model, chatHistory.slice(), function(d){
+      if(d && d.delta){ acc += d.delta; if(chatAiEl) chatAiEl.textContent = acc; chatLogScroll(); }
+    }).then(function(r){
+      btn.disabled = false; btn.textContent = '发送';
+      if(r && r.ok){
+        chatHistory.push({ role: 'assistant', content: r.content });
+        if(!acc && chatAiEl) chatAiEl.textContent = r.content || '（无内容）';
+        setChatMeta(r.usage, r.cost);
+      } else {
+        if(chatAiEl) chatAiEl.textContent = '出错了：' + ((r && r.error) || '未知');
+        setChatMetaText('请求失败');
+      }
+    }).catch(function(err){
+      btn.disabled = false; btn.textContent = '发送';
+      if(chatAiEl) chatAiEl.textContent = '出错了：' + String((err && err.message) || err);
+      setChatMetaText('请求失败');
     });
   }
+
+  function chatClear(){
+    chatHistory = [];
+    chatAiEl = null;
+    var log = $('chatLog');
+    if(log) log.innerHTML = '<div class="chat-empty">在下方输入问题开始对话（流式回复，结束显示 token 用量与费用）</div>';
+    setChatMetaText('');
+  }
+
+  // AI button delegation (providers are rendered dynamically).
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    var save = t.closest ? t.closest('.ai-save-btn') : null;
+    if(save){
+      var pid = save.getAttribute('data-provider');
+      var inp = document.querySelector('.ai-key-input[data-provider="' + pid + '"]');
+      var val = inp ? inp.value.trim() : '';
+      if(pid !== 'ollama' && !val){ toast('请先粘贴 API Key'); return; }
+      window.workplace.aiSaveKey(pid, val).then(function(r){
+        toast(r && r.ok ? '已保存' : ('保存失败：' + ((r && r.error) || '未知')));
+        loadAiProviders();
+      });
+      return;
+    }
+    var test = t.closest ? t.closest('.ai-test-btn') : null;
+    if(test){
+      var pid2 = test.getAttribute('data-provider');
+      var inp2 = document.querySelector('.ai-key-input[data-provider="' + pid2 + '"]');
+      var val2 = inp2 ? inp2.value.trim() : '';
+      var status = document.querySelector('.ai-status[data-status="' + pid2 + '"]');
+      if(status){ status.className = 'ai-status busy'; }
+      test.disabled = true; test.textContent = '测试中…';
+      var run = function(){ return window.workplace.aiTest(pid2); };
+      var finish = function(r){
+        test.disabled = false; test.textContent = '测试';
+        if(status){ status.className = 'ai-status ' + (r && r.ok ? 'ok' : 'off'); }
+        toast(r && r.ok ? (pid2 === 'ollama' ? '本地服务连通' : '连接成功') : ('连接失败：' + ((r && r.error) || '未知')));
+        if(r && r.ok) loadAiProviders();
+      };
+      if(val2 && pid2 !== 'ollama'){
+        window.workplace.aiSaveKey(pid2, val2).then(function(sr){ run().then(finish).catch(function(err){ finish({ ok: false, error: err && err.message }); }); });
+      } else {
+        run().then(finish).catch(function(err){ finish({ ok: false, error: err && err.message }); });
+      }
+      return;
+    }
+  });
+
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.id === 'chatSend'){ chatSend(); return; }
+    if(e.target && e.target.id === 'chatClear'){ chatClear(); return; }
+  });
+
+  // chat input: Enter to send, Shift+Enter for newline.
+  document.addEventListener('keydown', function(e){
+    if(e.target && e.target.id === 'chatInput' && e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      chatSend();
+    }
+  });
 
   if(!hasWP) setSync('off','离线模式 · 本地预览');
   loadOptions();

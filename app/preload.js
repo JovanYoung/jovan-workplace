@@ -15,5 +15,16 @@ contextBridge.exposeInMainWorld('workplace', {
   exportData: (json, suggestedName) => ipcRenderer.invoke('dialog:export', json, suggestedName),
   importData: () => ipcRenderer.invoke('dialog:import'),
   notify: (title, body) => ipcRenderer.invoke('notify', title, body),
-  getDataPath: () => ipcRenderer.invoke('app:get-data-path')
+  getDataPath: () => ipcRenderer.invoke('app:get-data-path'),
+  aiListProviders: () => ipcRenderer.invoke('ai:list-providers'),
+  aiSaveKey: (provider, apiKey) => ipcRenderer.invoke('ai:save-key', provider, apiKey),
+  aiTest: (provider) => ipcRenderer.invoke('ai:test', provider),
+  // Streaming chat: onChunk receives {delta} per token; returns final {ok, content, usage, cost}.
+  aiChat: (provider, model, messages, onChunk) => {
+    const listener = (e, data) => { if (typeof onChunk === 'function') onChunk(data); };
+    ipcRenderer.on('ai:chunk', listener);
+    return ipcRenderer.invoke('ai:chat', provider, model, messages).finally(function () {
+      ipcRenderer.removeListener('ai:chunk', listener);
+    });
+  }
 });

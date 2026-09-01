@@ -7,6 +7,7 @@ const { app, BrowserWindow, Tray, Menu, dialog, ipcMain, Notification, safeStora
 const path = require('path');
 const fs = require('fs');
 const data = require('./data.js');
+const ai = require('./ai.js');
 
 const APP_NAME = "Jovan's Workplace";
 const DEFAULT_DATA_DIR = path.join('D:', "Jovan's Workplace", 'data');
@@ -137,6 +138,28 @@ function registerIpc() {
     if (!key) return { ok: false, error: 'ima 未配置，请在设置里填写 API Key' };
     try { return await data.imaBackup(IMA_CLIENT_ID, key); }
     catch (e) { return { ok: false, error: String(e.message || e) }; }
+  });
+
+  // ---- AI gateway (built-in, replaces dsh bridge) ----
+  ipcMain.handle('ai:list-providers', () => ({ providers: ai.listProviders() }));
+  ipcMain.handle('ai:save-key', (e, provider, apiKey) => ai.setKey(provider, apiKey));
+  ipcMain.handle('ai:test', async (e, provider) => await ai.test(provider));
+  ipcMain.handle('ai:chat', async (e, provider, model, messages) => {
+    const sender = e.sender;
+    const full = [{ role: 'system', content: ai.SYSTEM_PROMPT }].concat(messages || []);
+    try {
+      const r = await ai.chat({
+        provider: provider,
+        model: model,
+        messages: full,
+        onChunk: function (delta) {
+          if (sender && !sender.isDestroyed()) sender.send('ai:chunk', { delta: delta });
+        }
+      });
+      return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
+    } catch (err) {
+      return { ok: false, error: String(err.message || err) };
+    }
   });
 
   ipcMain.handle('dialog:export', (e, json, suggestedName) => {
