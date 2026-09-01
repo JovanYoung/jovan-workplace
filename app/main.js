@@ -8,6 +8,8 @@ const path = require('path');
 const fs = require('fs');
 const data = require('./data.js');
 const ai = require('./ai.js');
+const tools = require('./tools.js');
+const parse = require('./parse.js');
 
 const APP_NAME = "Jovan's Workplace";
 const DEFAULT_DATA_DIR = path.join('D:', "Jovan's Workplace", 'data');
@@ -158,6 +160,57 @@ function registerIpc() {
         }
       });
       return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
+    } catch (err) {
+      return { ok: false, error: String(err.message || err) };
+    }
+  });
+
+  // ---- Agent tool loop (Step 1+2): model may call workbench tools; events streamed ----
+  ipcMain.handle('ai:agent', async (e, provider, model, messages, thinking) => {
+    const sender = e.sender;
+    const full = [{ role: 'system', content: ai.SYSTEM_PROMPT + '你可以调用工具查询或新建工作台数据（日程/任务/备忘/亲友/学习）。写操作会生成草稿，需用户确认后才真正写入。' }].concat(messages || []);
+    try {
+      const r = await ai.runAgentLoop({
+        provider: provider,
+        model: model,
+        messages: full,
+        tools: tools.TOOL_DEFS,
+        thinking: thinking,
+        executeTool: tools.executeTool,
+        onEvent: function (ev) {
+          if (sender && !sender.isDestroyed()) sender.send('ai:agent-event', ev);
+        }
+      });
+      return { ok: true, content: r.content, usage: r.usage, cost: r.usage, rounds: r.rounds, stopped: !!r.stopped };
+    } catch (err) {
+      return { ok: false, error: String(err.message || err) };
+    }
+  });
+
+  // ---- Step 3: one-shot natural-language parse (flash + JSON output) ----
+  ipcMain.handle('ai:parse', async (e, text) => {
+    try { return await parse.parse(text); }
+    catch (err) { return { ok: false, error: String(err.message || err), parsed: null, confidence: 0 }; }
+  });
+
+  // ---- Step 4: proactive intent detection after a conversation turn ----
+  ipcMain.handle('ai:detect', async (e, messages) => {
+    try { return await parse.detect(messages); }
+    catch (err) { return { ok: false, error: String(err.message || err), hit: false }; }
+  });
+
+  // ---- learning dictionary (data/dict.json) ----
+  ipcMain.handle('ai:dict-load', () => ({ ok: true, dict: parse.dictLoad() }));
+  ipcMain.handle('ai:dict-save', (e, d) => parse.dictSave(d));
+  ipcMain.handle('ai:dict-clear', () => parse.dictClear());
+
+  // ---- draft confirm: user clicked confirm in the dialog, persist via data.add ----
+  ipcMain.handle('ai:confirm-draft', (e, draft) => {
+    try {
+      if (!draft || !draft.props || !draft.props['类型']) return { ok: false, error: '无效草稿' };
+      const row = data.add(draft.props);
+      if ((row['类型'] || '') !== '日志') data.logOp('添加', row['类型'] || '', row['标题'] || '');
+      return { ok: true, row: row, rows: data.rows() };
     } catch (err) {
       return { ok: false, error: String(err.message || err) };
     }

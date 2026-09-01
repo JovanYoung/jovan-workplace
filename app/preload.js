@@ -27,5 +27,19 @@ contextBridge.exposeInMainWorld('workplace', {
     return ipcRenderer.invoke('ai:chat', provider, model, messages).finally(function () {
       ipcRenderer.removeListener('ai:chunk', listener);
     });
-  }
+  },
+  // Agent tool loop (Step 1+2): onEvent receives {type,...} events; returns final {ok, content, usage, rounds}.
+  aiAgent: (provider, model, messages, thinking, onEvent) => {
+    const listener = (e, data) => { if (typeof onEvent === 'function') onEvent(data); };
+    ipcRenderer.on('ai:agent-event', listener);
+    return ipcRenderer.invoke('ai:agent', provider, model, messages, thinking).finally(function () {
+      ipcRenderer.removeListener('ai:agent-event', listener);
+    });
+  },
+  aiParse: (text) => ipcRenderer.invoke('ai:parse', text),
+  aiDetect: (messages) => ipcRenderer.invoke('ai:detect', messages),
+  aiDictLoad: () => ipcRenderer.invoke('ai:dict-load'),
+  aiDictSave: (dict) => ipcRenderer.invoke('ai:dict-save', dict),
+  aiDictClear: () => ipcRenderer.invoke('ai:dict-clear'),
+  aiConfirmDraft: (draft) => ipcRenderer.invoke('ai:confirm-draft', draft)
 });

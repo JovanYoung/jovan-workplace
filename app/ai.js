@@ -203,6 +203,34 @@ function calcCost(price, usage) {
   return { input: input, output: output, total: total, rmb: rmb };
 }
 
+// ---- config (userData/config.json, shared with main.js) ----
+function readAgentCfg() {
+  try { return JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'config.json'), 'utf8')); }
+  catch (e) { return {}; }
+}
+// MAX_TOOL_ROUNDS — read from config.json (default 5), key: maxToolRounds.
+function maxToolRounds() {
+  const cfg = readAgentCfg();
+  const v = parseInt(cfg.maxToolRounds, 10);
+  return (isNaN(v) || v < 1) ? 5 : v;
+}
+const TOOL_RESULT_TRUNCATE = 2000;
+
+// ---- deepseek thinking mode params (verified 2026-09-01 against api-docs.deepseek.com) ----
+// Toggle : body.thinking = { type: 'enabled' | 'disabled' }   (disabled = non-thinking mode)
+// Effort : body.reasoning_effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+//   mapping: low->low, medium/high/xhigh->high, max->max. Thinking ON by default (effort=high).
+// Thinking mode ignores temperature/top_p/presence_penalty/frequency_penalty.
+const THINKING_LEVELS = {
+  off:    { thinking: { type: 'disabled' } },
+  shallow:{ thinking: { type: 'enabled' }, reasoning_effort: 'low' },
+  normal: { thinking: { type: 'enabled' }, reasoning_effort: 'high' },
+  deep:   { thinking: { type: 'enabled' }, reasoning_effort: 'max' }
+};
+function thinkingParams(level) {
+  return THINKING_LEVELS[level] || null; // null = model default (enabled + high)
+}
+
 // ---- core chat() — streaming via SSE ----
 async function chat(params) {
   const provider = params.provider;
@@ -228,6 +256,12 @@ async function chat(params) {
     stream: true,
     stream_options: { include_usage: true }
   };
+  // Thinking depth (Step 5): inject thinking/reasoning_effort when provided.
+  const think = thinkingParams(params.thinking);
+  if (think) {
+    body.thinking = think.thinking;
+    if (think.reasoning_effort) body.reasoning_effort = think.reasoning_effort;
+  }
 
   let res = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(body) });
   // Some OpenAI-compatible endpoints reject stream_options; retry once without it.
@@ -274,6 +308,157 @@ async function chat(params) {
   return { content: content, usage: cost, cost: cost, model: m.name, provider: p.id };
 }
 
+// ---- non-streaming single completion (for tool loop / JSON output) ----
+async function chatOnce(params) {
+  const provider = params.provider;
+  const model = params.model;
+  const messages = params.messages;
+  const tools = params.tools;           // optional OpenAI-format tools
+  const responseFormat = params.responseFormat; // optional {type:'json_object'}
+  const thinking = params.thinking;
+
+  const p = findProvider(provider);
+  if (!p) throw new Error('未知厂商：' + provider);
+  const m = findModel(provider, model);
+  if (!m) throw new Error('未知模型：' + model);
+  const key = getKey(provider);
+  if (provider !== 'ollama' && !key) throw new Error('未配置 API Key，请到 设置 → AI 模型 填写');
+
+  const url = p.baseURL.replace(/\/+$/, '') + '/chat/completions';
+  const headers = { 'Content-Type': 'application/json' };
+  if (provider !== 'ollama') headers['Authorization'] = 'Bearer ' + key;
+
+  const body = { model: m.name, messages: messages, stream: false };
+  if (tools && tools.length) body.tools = tools;
+  if (responseFormat) body.response_format = responseFormat;
+  const think = thinkingParams(thinking);
+  if (think) {
+    body.thinking = think.thinking;
+    if (think.reasoning_effort) body.reasoning_effort = think.reasoning_effort;
+  }
+
+  const res = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(body) });
+  if (!res.ok) {
+    let errText = '';
+    try { errText = await res.text(); } catch (e) {}
+    throw new Error('HTTP ' + res.status + ' ' + errText.slice(0, 300));
+  }
+  const j = await res.json();
+  const msg = j.choices && j.choices[0] && j.choices[0].message;
+  if (!msg) throw new Error('空响应：' + JSON.stringify(j).slice(0, 200));
+  const usage = j.usage;
+  const cost = calcCost(m.price, usage);
+  return {
+    message: msg,            // {role, content, tool_calls?, reasoning_content?}
+    usage: cost, cost: cost, model: m.name, provider: p.id
+  };
+}
+
+// ---- one-shot JSON-mode completion with schema validation + 1 retry ----
+// Returns {ok:true, data} or {ok:false, error}. Retries once with a correction hint.
+async function jsonOutput(params) {
+  const provider = params.provider;
+  const model = params.model;
+  const messages = params.messages.slice();
+  const validate = params.validate || function () { return { ok: true }; };
+
+  let usage = null, raw = '';
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    const resp = await chatOnce({
+      provider: provider, model: model, messages: messages,
+      responseFormat: { type: 'json_object' }
+    });
+    usage = resp.usage;
+    raw = resp.message.content || '';
+    let obj = null;
+    try {
+      obj = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim());
+    } catch (e) { obj = null; }
+    const v = validate(obj);
+    if (obj && v.ok) return { ok: true, data: obj, usage: usage, raw: raw };
+    messages.push({ role: 'assistant', content: raw });
+    messages.push({
+      role: 'user',
+      content: '你上次的输出不是合法 JSON 或不符合 schema（' + (v.error || 'JSON 解析失败') + '）。请只输出一个符合要求的 JSON 对象，不要输出任何多余文字。'
+    });
+  }
+  return { ok: false, error: 'JSON 输出校验失败', raw: raw, usage: usage };
+}
+
+// ---- tool loop engine (Step 1) ----
+// Runs the model until it stops calling tools, up to MAX_TOOL_ROUNDS.
+//   messages   : working message array (will be extended with tool results)
+//   tools      : OpenAI-format tool definitions
+//   executeTool: async (name, args) => any result (read tools) or {draft:true,...}
+//   onEvent    : ({type, ...}) => void  — status pushed to renderer via ai:agent-event
+async function runAgentLoop(params) {
+  const provider = params.provider;
+  const model = params.model;
+  const messages = params.messages.slice();
+  const tools = params.tools || [];
+  const executeTool = params.executeTool;
+  const onEvent = params.onEvent || function () {};
+  const thinking = params.thinking;
+
+  const MAX_ROUNDS = maxToolRounds();
+  let totalUsage = { input: 0, output: 0, total: 0, rmb: 0 };
+
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    onEvent({ type: 'round', round: round + 1, max: MAX_ROUNDS });
+    const resp = await chatOnce({ provider: provider, model: model, messages: messages, tools: tools, thinking: thinking });
+    const msg = resp.message;
+    const toolCalls = msg.tool_calls || [];
+    // KEEP reasoning_content in history: when a request carries `tools`, DeepSeek
+    // REQUIRES the assistant reasoning_content to be passed back, else HTTP 400.
+    messages.push({
+      role: 'assistant',
+      content: msg.content || '',
+      reasoning_content: msg.reasoning_content || '',
+      tool_calls: toolCalls
+    });
+    // Accumulate usage across rounds for correct RMB display (Step 5 linkage).
+    if (resp.usage) {
+      totalUsage.input += resp.usage.input || 0;
+      totalUsage.output += resp.usage.output || 0;
+      totalUsage.total += resp.usage.total || 0;
+      totalUsage.rmb += resp.usage.rmb || 0;
+    }
+
+    if (!toolCalls.length) {
+      onEvent({ type: 'done', content: msg.content || '', usage: totalUsage });
+      return { content: msg.content || '', usage: totalUsage, rounds: round + 1 };
+    }
+
+    onEvent({ type: 'tools', names: toolCalls.map(function (c) { return c.function.name; }) });
+    const results = await Promise.all(toolCalls.map(async function (tc) {
+      const name = tc.function.name;
+      let args = {};
+      try { args = JSON.parse(tc.function.arguments || '{}'); } catch (e) { args = {}; }
+      onEvent({ type: 'tool-start', id: tc.id, name: name, args: args });
+      let result = null, err = null;
+      for (let attempt = 0; attempt <= 1; attempt++) {
+        try {
+          result = await executeTool(name, args, onEvent);
+          err = null;
+          break;
+        } catch (e) {
+          err = String(e.message || e);
+          if (attempt < 1) onEvent({ type: 'tool-retry', id: tc.id, name: name, attempt: attempt + 1 });
+        }
+      }
+      if (err) result = { error: err };
+      let text = JSON.stringify(result);
+      if (text.length > TOOL_RESULT_TRUNCATE) text = text.slice(0, TOOL_RESULT_TRUNCATE) + '…（已截断）';
+      onEvent({ type: 'tool-done', id: tc.id, name: name, result: text });
+      return { tool_call_id: tc.id, content: text };
+    }));
+    results.forEach(function (r) { messages.push({ role: 'tool', tool_call_id: r.tool_call_id, content: r.content }); });
+  }
+
+  onEvent({ type: 'limit' });
+  return { content: '', usage: totalUsage, rounds: MAX_ROUNDS, stopped: true };
+}
+
 // ---- connectivity test: send one tiny non-streaming request ----
 async function test(provider) {
   const p = findProvider(provider);
@@ -315,5 +500,10 @@ module.exports = {
   setKey,
   test,
   chat,
+  chatOnce,
+  jsonOutput,
+  runAgentLoop,
+  thinkingParams,
+  maxToolRounds,
   SYSTEM_PROMPT
 };

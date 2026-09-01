@@ -142,6 +142,19 @@ body.nav-bottom #bottomTabs{display:none}
 .chat-input:focus{outline:none;border-color:var(--orange)}
 .chat-meta{font-size:12px;color:var(--g4);margin-top:8px;text-align:right;min-height:18px}
 .chat-meta b{color:var(--orange-d);font-weight:500}
+.think-group{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--g6)}
+.think-group input[type=range]{width:110px;accent-color:var(--orange)}
+.think-val{min-width:30px;color:var(--orange-d);font-weight:500}
+.agent-steps{display:flex;flex-direction:column;gap:5px;padding:8px 12px;border:1px dashed var(--g2);border-radius:10px;margin-top:8px;background:var(--surface-soft)}
+.agent-step{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--g5)}
+.agent-step .st-dot{width:7px;height:7px;border-radius:50%;background:var(--g3);flex-shrink:0}
+.agent-step.doing .st-dot{background:var(--orange);box-shadow:0 0 0 3px rgba(249,115,22,.18)}
+.agent-step.ok .st-dot{background:var(--orange-d)}
+.agent-step .st-name{color:var(--orange-d)}
+.draft-inline{margin-top:8px;padding:10px 12px;border:1px solid var(--orange);border-radius:10px;background:var(--orange-l);font-size:13px;color:var(--ink);display:flex;align-items:center;gap:10px}
+.draft-inline .draft-txt{flex:1;min-width:0}
+.draft-inline .draft-txt b{color:var(--orange-d)}
+.draft-inline .btn{flex-shrink:0}
 
 .main{flex:1;min-width:0;padding:22px 26px 40px;max-width:1100px;margin:0 auto;width:100%}
 .topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
@@ -748,11 +761,17 @@ textarea.f-input{resize:vertical;min-height:76px}
           <div class="chat-toolbar">
             <span class="set-label">模型</span>
             <select class="chat-select" id="chatModelSel"><option value="">未配置模型</option></select>
+            <span class="think-group" id="thinkGroup" title="思考深度：关闭→最快最省，深→质量最高更贵">
+              <span>思考</span>
+              <input type="range" id="thinkSlider" min="0" max="3" step="1" value="2">
+              <span class="think-val" id="thinkVal">标准</span>
+            </span>
             <button class="btn btn-sm btn-ghost" id="chatClear">清空对话</button>
           </div>
           <div class="chat-log" id="chatLog">
             <div class="chat-empty">在下方输入问题开始对话（流式回复，结束显示 token 用量与费用）</div>
           </div>
+          <div id="agentSteps" style="display:none"></div>
           <div class="chat-input-row">
             <textarea class="chat-input" id="chatInput" placeholder="输入消息，Enter 发送 / Shift+Enter 换行" rows="1"></textarea>
             <button class="btn btn-primary" id="chatSend" style="padding:12px 20px">发送</button>
@@ -2742,8 +2761,20 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(t.indexOf('下周')>=0) return add(7);
     return null;
   }
-  function parseDictGet(){ try{ return JSON.parse(localStorage.getItem('wb_parse_dict')||'{}'); }catch(e){ return {}; } }
-  function parseDictSave(d){ try{ localStorage.setItem('wb_parse_dict',JSON.stringify(d)); }catch(e){} }
+  // Learning dictionary — migrated to main-process data/dict.json (cross-device).
+  // DICT_CACHE mirrors it in memory; sync via IPC (async) with localStorage as seed.
+  var DICT_CACHE = null;
+  function parseDictGet(){ if(DICT_CACHE) return DICT_CACHE; try{ DICT_CACHE=JSON.parse(localStorage.getItem('wb_parse_dict')||'{}'); }catch(e){ DICT_CACHE={}; } return DICT_CACHE; }
+  function parseDictSave(d){ DICT_CACHE=d||{}; if(hasWP) window.workplace.aiDictSave(DICT_CACHE); else { try{ localStorage.setItem('wb_parse_dict',JSON.stringify(DICT_CACHE)); }catch(e){} } }
+  function loadDictFromMain(){
+    if(!hasWP) return;
+    window.workplace.aiDictLoad().then(function(j){
+      if(j && j.ok && j.dict && Object.keys(j.dict).length){ DICT_CACHE=j.dict; return; }
+      // main empty -> migrate localStorage seed up
+      var seed={}; try{ seed=JSON.parse(localStorage.getItem('wb_parse_dict')||'{}'); }catch(e){ seed={}; }
+      if(Object.keys(seed).length){ DICT_CACHE=seed; window.workplace.aiDictSave(DICT_CACHE); }
+    }).catch(function(){});
+  }
   function titleWords(t){
     var s=(t||'').toLowerCase().replace(/[，。！？、：:；;,.!?()（）\[\]【】\/\\"'“”‘’\s]+/g,' ');
     var words=s.split(' ').filter(function(w){ return w.length>=2; });
@@ -2930,16 +2961,15 @@ textarea.f-input{resize:vertical;min-height:76px}
   function aiParse(){
     var raw=CONFIRM_RAW||($('qInput')?$('qInput').value:'').trim();
     if(!raw){ toast('先输入要做的事'); return; }
-    if(location.protocol==='https:'){ toast('HTTPS 页面无法直连本地 AI，请用本地预览或等待 EXE 版'); return; }
     var btn=$('aiDeepBtn');
     if(btn){ btn.disabled=true; btn.textContent='AI 思考中…'; }
     var done=function(){ if(btn){ btn.disabled=false; btn.textContent='🤖 AI 深度解析'; } };
-    fetch('http://127.0.0.1:8787/parse?text='+encodeURIComponent(raw),{mode:'cors'})
-      .then(function(r){ return r.json(); })
+    if(!hasWP || !window.workplace.aiParse){ done(); toast('仅桌面版支持 AI 解析'); return; }
+    window.workplace.aiParse(raw)
       .then(function(j){
         done();
-        if(j&&j.ok&&j.data){
-          PARSED=j.data;
+        if(j&&j.ok&&j.parsed){
+          PARSED=j.parsed;
           PARSED.详情=PARSED.详情||raw;
           autoPriority(PARSED);
           showConfirmCard();
@@ -2950,7 +2980,7 @@ textarea.f-input{resize:vertical;min-height:76px}
       })
       .catch(function(){
         done();
-        toast('连不上本地桥（127.0.0.1:8787），请确认已启动 bridge.js');
+        toast('AI 解析失败，请检查网络或 API Key');
       });
   }
   function confirmAdd(){
@@ -3063,7 +3093,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     var last=localStorage.getItem('wb_last_autobackup')||'';
     var bt=$('setBackupTime'); if(bt) bt.textContent=last?last:'尚未备份';
     var dc=$('setDictCount');
-    if(dc){ try{ dc.textContent=Object.keys(JSON.parse(localStorage.getItem('wb_parse_dict')||'{}')).length+' 词条'; }catch(e){ dc.textContent='0 词条'; } }
+    if(dc){ try{ dc.textContent=Object.keys(parseDictGet()).length+' 词条'; }catch(e){ dc.textContent='0 词条'; } }
     setPanel('appearance');
     $('settingsMask').className='modal-mask show';
   }
@@ -3136,7 +3166,9 @@ textarea.f-input{resize:vertical;min-height:76px}
       return;
     }
     if(e.target.id==='setDictClear'){
-      localStorage.removeItem('wb_parse_dict');
+      DICT_CACHE={};
+      if(hasWP) window.workplace.aiDictClear();
+      else { try{ localStorage.removeItem('wb_parse_dict'); }catch(e){} }
       var dc=$('setDictCount'); if(dc) dc.textContent='0 词条';
       toast('学习词典已清空');
       return;
@@ -3639,6 +3671,83 @@ textarea.f-input{resize:vertical;min-height:76px}
     }
   }
 
+  // ---- thinking depth (Step 5) ----
+  var THINK_LABELS = ['关闭', '浅', '标准', '深'];
+  var THINK_KEYS = ['off', 'shallow', 'normal', 'deep'];
+  function thinkKey(){ return THINK_KEYS[+($('thinkSlider') ? $('thinkSlider').value : 2)] || 'normal'; }
+
+  // ---- agent step bar ----
+  var agentStepNames = { query_today: '查询今日', query_schedules: '查询日程', query_memos: '查询备忘', query_family: '查询亲友', query_study: '查询学习', create_schedule: '新建日程', create_task: '新建任务', create_memo: '新建备忘', create_family: '新建亲友', create_study: '新建学习' };
+  function showAgentSteps(show){ var el = $('agentSteps'); if(el) el.style.display = show ? 'block' : 'none'; }
+  function setAgentSteps(items){
+    var el = $('agentSteps');
+    if(!el) return;
+    showAgentSteps(true);
+    var h = '';
+    items.forEach(function(s){
+      var cls = s.status === 'doing' ? 'doing' : (s.status === 'ok' ? 'ok' : '');
+      h += '<div class="agent-step ' + cls + '"><span class="st-dot"></span><span class="st-name">' + esc(s.name || '') + '</span><span>' + esc(s.detail || '') + '</span></div>';
+    });
+    el.innerHTML = h;
+    var log = $('chatLog'); if(log) log.scrollTop = log.scrollHeight;
+  }
+  var agentStepsArr = [];
+  function agentStepReset(){ agentStepsArr = []; setAgentSteps(agentStepsArr); }
+  function agentStep(name, status, detail){
+    var i = agentStepsArr.findIndex(function(s){ return s.name === name && s.status === status; });
+    if(status === 'doing'){
+      var j = agentStepsArr.findIndex(function(s){ return s.name === name && s.status === 'doing'; });
+      if(j < 0) agentStepsArr.push({ name: agentStepNames[name] || name, status: status, detail: detail || '' });
+      else agentStepsArr[j].detail = detail || '';
+    } else if(status === 'ok'){
+      var k = agentStepsArr.findIndex(function(s){ return s.name === (agentStepNames[name] || name) && s.status === 'doing'; });
+      if(k >= 0){ agentStepsArr[k].status = 'ok'; agentStepsArr[k].detail = detail || ''; }
+      else agentStepsArr.push({ name: agentStepNames[name] || name, status: 'ok', detail: detail || '' });
+    }
+    setAgentSteps(agentStepsArr);
+  }
+
+  // ---- draft confirm card (inline in chat log) ----
+  function showDraftCard(draft){
+    if(!draft) return;
+    var log = $('chatLog');
+    if(!log) return;
+    var el = document.createElement('div');
+    el.className = 'draft-inline';
+    el.innerHTML = '<div class="draft-txt">检测到可执行事项：<b>' + esc(draft.preview || (draft.type + '：' + (draft.props && draft.props['标题']))) + '</b></div>' +
+      '<button class="btn btn-sm btn-primary draft-ok">确认写入</button>' +
+      '<button class="btn btn-sm btn-ghost draft-no">忽略</button>';
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    var ok = el.querySelector('.draft-ok'), no = el.querySelector('.draft-no');
+    ok.addEventListener('click', function(){
+      ok.disabled = true; ok.textContent = '写入中…';
+      window.workplace.aiConfirmDraft(draft).then(function(r){
+        if(r && r.ok){
+          el.innerHTML = '<div class="draft-txt">已写入「<b>' + esc(draft.type) + '</b>」：' + esc(draft.props['标题'] || '') + '</div>';
+          toast('已添加「' + draft.type + '」');
+          loadData();
+        } else {
+          ok.disabled = false; ok.textContent = '确认写入';
+          toast('写入失败：' + ((r && r.error) || '未知'));
+        }
+      }).catch(function(){ ok.disabled = false; ok.textContent = '确认写入'; toast('写入失败'); });
+    });
+    no.addEventListener('click', function(){
+      el.innerHTML = '<div class="draft-txt" style="color:var(--g4)">已忽略</div>';
+    });
+  }
+  function showNoticeCard(text){
+    var log = $('chatLog');
+    if(!log) return;
+    var el = document.createElement('div');
+    el.className = 'draft-inline';
+    el.style.borderColor = 'var(--g3)';
+    el.innerHTML = '<div class="draft-txt">💡 ' + esc(text || '') + '</div>';
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  }
+
   function chatSend(){
     if(!aiAvailable()){ toast('仅桌面版支持（需 Electron 内置 AI 网关）'); return; }
     var sel = $('chatModelSel');
@@ -3653,18 +3762,28 @@ textarea.f-input{resize:vertical;min-height:76px}
     chatHistory.push({ role: 'user', content: text });
     appendChatMsg('user', text);
     chatAiEl = appendChatMsg('ai', '');
-    setChatMetaText('回复中…');
+    setChatMetaText('思考中…');
     var btn = $('chatSend');
     btn.disabled = true; btn.textContent = '回复中…';
-    var acc = '';
-    window.workplace.aiChat(provider, model, chatHistory.slice(), function(d){
-      if(d && d.delta){ acc += d.delta; if(chatAiEl) chatAiEl.textContent = acc; chatLogScroll(); }
+    agentStepReset();
+
+    var thinking = thinkKey();
+    window.workplace.aiAgent(provider, model, chatHistory.slice(), thinking, function(ev){
+      if(!ev) return;
+      if(ev.type === 'round'){ agentStepReset(); }
+      else if(ev.type === 'tool-start'){ agentStep(ev.name, 'doing', ev.args && ev.args['标题'] ? '：' + ev.args['标题'] : ''); }
+      else if(ev.type === 'tool-done'){ agentStep(ev.name, 'ok', ''); }
+      else if(ev.type === 'draft'){ showDraftCard(ev.draft); }
+      else if(ev.type === 'done'){ if(chatAiEl) chatAiEl.textContent = ev.content || ''; setChatMeta(ev.usage, ev.usage); chatLogScroll(); }
     }).then(function(r){
       btn.disabled = false; btn.textContent = '发送';
       if(r && r.ok){
         chatHistory.push({ role: 'assistant', content: r.content });
-        if(!acc && chatAiEl) chatAiEl.textContent = r.content || '（无内容）';
-        setChatMeta(r.usage, r.cost);
+        if(chatAiEl && !chatAiEl.textContent) chatAiEl.textContent = r.content || '（无内容）';
+        setChatMeta(r.usage, r.usage);
+        chatLogScroll();
+        // Step 4: proactive intent detection after the turn.
+        runDetect();
       } else {
         if(chatAiEl) chatAiEl.textContent = '出错了：' + ((r && r.error) || '未知');
         setChatMetaText('请求失败');
@@ -3676,11 +3795,28 @@ textarea.f-input{resize:vertical;min-height:76px}
     });
   }
 
+  // ---- Step 4: proactive intent detection (flash) ----
+  var detectBusy = false;
+  function runDetect(){
+    if(!aiAvailable() || !window.workplace.aiDetect) return;
+    if(detectBusy) return;
+    detectBusy = true;
+    window.workplace.aiDetect(chatHistory.slice()).then(function(j){
+      detectBusy = false;
+      if(j && j.ok && j.hit){
+        if(j.draft) showDraftCard(j.draft);
+        else if(j.notice) showNoticeCard(j.notice);
+      }
+    }).catch(function(){ detectBusy = false; });
+  }
+
   function chatClear(){
     chatHistory = [];
     chatAiEl = null;
     var log = $('chatLog');
     if(log) log.innerHTML = '<div class="chat-empty">在下方输入问题开始对话（流式回复，结束显示 token 用量与费用）</div>';
+    agentStepReset();
+    showAgentSteps(false);
     setChatMetaText('');
   }
 
@@ -3751,6 +3887,14 @@ textarea.f-input{resize:vertical;min-height:76px}
   loadOptions();
   probeBridge();
   checkAgent();
+  loadDictFromMain();
+  if($('thinkSlider')){
+    $('thinkSlider').addEventListener('input', function(){
+      var v = +this.value;
+      var el = $('thinkVal');
+      if(el) el.textContent = THINK_LABELS[v] || '标准';
+    });
+  }
   applyTheme(localStorage.getItem('wb_theme')||'system');
   applyNavPos(localStorage.getItem('wb_navpos')||'top');
   applyContentMode(localStorage.getItem('wb_contentmode')||'center');
