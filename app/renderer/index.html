@@ -118,6 +118,9 @@ body.nav-bottom #bottomTabs{display:none}
 .ai-row:last-child{border-bottom:none}
 .ai-cell-name{width:110px;flex-shrink:0;min-width:0}
 .ai-name{font-size:13px;color:var(--ink2);font-weight:500;line-height:1.3}
+.ai-models{font-size:11px;color:var(--g4);margin-top:2px;word-break:break-all}
+.ai-custom-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.ai-custom-input{flex:1;min-width:0;padding:5px 10px;border:1px solid var(--g2);border-radius:8px;font-size:12px;background:var(--surface);color:var(--ink);font-family:inherit}
 .ai-remark{font-size:11px;color:var(--g4);line-height:1.3}
 .ai-key-input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--g2);border-radius:8px;background:var(--surface);color:var(--ink);font-size:13px}
 .ai-key-input:focus{outline:none;border-color:var(--orange)}
@@ -3582,6 +3585,8 @@ textarea.f-input{resize:vertical;min-height:76px}
     AI_PROVIDERS.forEach(function(p){
       h += '<div class="ai-row" data-provider="' + esc(p.id) + '">';
       h += '<div class="ai-cell-name"><div class="ai-name">' + esc(p.name) + '</div><div class="ai-remark">' + esc(p.remark || '') + '</div></div>';
+      h += '<div class="ai-models">模型：' + ((p.models || []).map(function(m){ return m.name + (m.vision ? '（视觉）' : ''); }).join(' · ') || '—') + '</div>';
+      h += '<div class="ai-custom-row"><input class="ai-custom-input" data-provider="' + esc(p.id) + '" placeholder="自定义模型名，逗号分隔（可选）" value="' + esc((p.customModels || []).join(', ')) + '"><button class="btn btn-sm btn-ghost ai-custom-save" data-provider="' + esc(p.id) + '">应用</button></div>';
       h += '<input type="password" class="ai-key-input" data-provider="' + esc(p.id) + '" autocomplete="off" placeholder="' + (p.configured ? '已配置（可重新填写）' : (p.id === 'ollama' ? '本地无需 Key' : '粘贴 API Key')) + '">';
       h += '<button class="btn btn-sm btn-primary ai-test-btn" data-provider="' + esc(p.id) + '">测试</button>';
       h += '<button class="btn btn-sm btn-ghost ai-save-btn" data-provider="' + esc(p.id) + '">保存</button>';
@@ -3690,6 +3695,17 @@ textarea.f-input{resize:vertical;min-height:76px}
       if(pid !== 'ollama' && !val){ toast('请先粘贴 API Key'); return; }
       window.workplace.aiSaveKey(pid, val).then(function(r){
         toast(r && r.ok ? '已保存' : ('保存失败：' + ((r && r.error) || '未知')));
+        loadAiProviders();
+      });
+      return;
+    }
+    var csave = t.closest ? t.closest('.ai-custom-save') : null;
+    if(csave){
+      var cpid = csave.getAttribute('data-provider');
+      var cinp = document.querySelector('.ai-custom-input[data-provider="' + cpid + '"]');
+      var cval = cinp ? cinp.value : '';
+      window.workplace.aiSetCustomModels(cpid, cval).then(function(r){
+        toast(r && r.ok ? ('自定义模型已保存（' + ((r && r.count) || 0) + ' 个）') : ('保存失败：' + ((r && r.error) || '未知')));
         loadAiProviders();
       });
       return;

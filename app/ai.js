@@ -119,6 +119,11 @@ function findModel(provider, model) {
   const p = findProvider(provider);
   if (!p) return null;
   for (let i = 0; i < p.models.length; i++) if (p.models[i].name === model) return p.models[i];
+  const cfg = readAiCfg();
+  const cus = (cfg.customModels && cfg.customModels[provider]) || [];
+  if (cus.indexOf(model) >= 0) {
+    return { name: model, vision: false, price: (p.models && p.models[0]) ? p.models[0].price : { in: 0, out: 0 }, custom: true };
+  }
   return p.models[0] || null;
 }
 
@@ -155,17 +160,36 @@ function setKey(provider, apiKey) {
 }
 
 // Public provider list — never returns keys, only configured status.
+function setCustomModels(pid, names) {
+  const cfg = readAiCfg();
+  const list = String(names || '').split(/[,，]/).map(function(x){ return x.trim(); }).filter(Boolean);
+  cfg.customModels = cfg.customModels || {};
+  cfg.customModels[pid] = list;
+  fs.writeFileSync(aiConfigPath(), JSON.stringify(cfg));
+  return { ok: true, count: list.length };
+}
+
 function listProviders() {
+  const cfg = readAiCfg();
+  const custom = cfg.customModels || {};
   return PROVIDERS.map(function (p) {
+    const models = p.models.map(function (m) {
+      return { name: m.name, vision: !!m.vision, price: m.price };
+    });
+    const basePrice = (p.models && p.models[0]) ? p.models[0].price : { in: 0, out: 0 };
+    (custom[p.id] || []).forEach(function (n) {
+      if (!models.find(function (m) { return m.name === n; })) {
+        models.push({ name: n, vision: false, price: basePrice, custom: true });
+      }
+    });
     return {
       id: p.id,
       name: p.name,
       remark: p.remark,
       defaultModel: p.defaultModel,
       configured: hasKey(p.id),
-      models: p.models.map(function (m) {
-        return { name: m.name, vision: !!m.vision, price: m.price };
-      })
+      customModels: custom[p.id] || [],
+      models: models
     };
   });
 }
@@ -286,6 +310,7 @@ async function test(provider) {
 
 module.exports = {
   listProviders,
+  setCustomModels,
   hasKey,
   setKey,
   test,

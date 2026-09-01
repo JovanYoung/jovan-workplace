@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('workplace', {
   aiListProviders: () => ipcRenderer.invoke('ai:list-providers'),
   aiSaveKey: (provider, apiKey) => ipcRenderer.invoke('ai:save-key', provider, apiKey),
   aiTest: (provider) => ipcRenderer.invoke('ai:test', provider),
+  aiSetCustomModels: (pid, names) => ipcRenderer.invoke('ai:set-custom-models', pid, names),
   // Streaming chat: onChunk receives {delta} per token; returns final {ok, content, usage, cost}.
   aiChat: (provider, model, messages, onChunk) => {
     const listener = (e, data) => { if (typeof onChunk === 'function') onChunk(data); };

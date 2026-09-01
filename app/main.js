@@ -144,6 +144,7 @@ function registerIpc() {
   ipcMain.handle('ai:list-providers', () => ({ providers: ai.listProviders() }));
   ipcMain.handle('ai:save-key', (e, provider, apiKey) => ai.setKey(provider, apiKey));
   ipcMain.handle('ai:test', async (e, provider) => await ai.test(provider));
+  ipcMain.handle('ai:set-custom-models', (e, pid, names) => ai.setCustomModels(pid, names));
   ipcMain.handle('ai:chat', async (e, provider, model, messages) => {
     const sender = e.sender;
     const full = [{ role: 'system', content: ai.SYSTEM_PROMPT }].concat(messages || []);
