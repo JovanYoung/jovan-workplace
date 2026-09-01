@@ -3694,15 +3694,15 @@ textarea.f-input{resize:vertical;min-height:76px}
   var agentStepsArr = [];
   function agentStepReset(){ agentStepsArr = []; setAgentSteps(agentStepsArr); }
   function agentStep(name, status, detail){
-    var i = agentStepsArr.findIndex(function(s){ return s.name === name && s.status === status; });
+    var label = agentStepNames[name] || name;
     if(status === 'doing'){
-      var j = agentStepsArr.findIndex(function(s){ return s.name === name && s.status === 'doing'; });
-      if(j < 0) agentStepsArr.push({ name: agentStepNames[name] || name, status: status, detail: detail || '' });
+      var j = agentStepsArr.findIndex(function(s){ return s.name === label && s.status === 'doing'; });
+      if(j < 0) agentStepsArr.push({ name: label, status: status, detail: detail || '' });
       else agentStepsArr[j].detail = detail || '';
     } else if(status === 'ok'){
-      var k = agentStepsArr.findIndex(function(s){ return s.name === (agentStepNames[name] || name) && s.status === 'doing'; });
+      var k = agentStepsArr.findIndex(function(s){ return s.name === label && s.status === 'doing'; });
       if(k >= 0){ agentStepsArr[k].status = 'ok'; agentStepsArr[k].detail = detail || ''; }
-      else agentStepsArr.push({ name: agentStepNames[name] || name, status: 'ok', detail: detail || '' });
+      else agentStepsArr.push({ name: label, status: 'ok', detail: detail || '' });
     }
     setAgentSteps(agentStepsArr);
   }
@@ -3770,8 +3770,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     var thinking = thinkKey();
     window.workplace.aiAgent(provider, model, chatHistory.slice(), thinking, function(ev){
       if(!ev) return;
-      if(ev.type === 'round'){ agentStepReset(); }
-      else if(ev.type === 'tool-start'){ agentStep(ev.name, 'doing', ev.args && ev.args['标题'] ? '：' + ev.args['标题'] : ''); }
+      if(ev.type === 'tool-start'){ agentStep(ev.name, 'doing', ev.args && ev.args['标题'] ? '：' + ev.args['标题'] : ''); }
       else if(ev.type === 'tool-done'){ agentStep(ev.name, 'ok', ''); }
       else if(ev.type === 'draft'){ showDraftCard(ev.draft); }
       else if(ev.type === 'done'){ if(chatAiEl) chatAiEl.textContent = ev.content || ''; setChatMeta(ev.usage, ev.usage); chatLogScroll(); }
