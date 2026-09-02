@@ -4075,6 +4075,65 @@ textarea.f-input{resize:vertical;min-height:76px}
     }).catch(function(){ memBusy = false; });
   }
 
+  // ---- Subject-chat proactive detect + draft confirm (M4 fix) ----
+  var subjectDetectIgnored = {};  // factKey -> ts
+  function showSubjectDraftCard(draft, intent){
+    if(!draft) return;
+    var log = $('subjectChatLog');
+    if(!log) return;
+    var el = document.createElement('div');
+    el.className = 'draft-inline';
+    el.innerHTML = '<div class="draft-txt">检测到可执行事项：<b>' + esc(draft.preview || (draft.type + '：' + (draft.props && draft.props['标题']))) + '</b></div>' +
+      '<button class="btn btn-sm btn-primary draft-ok">确认写入</button>' +
+      '<button class="btn btn-sm btn-ghost draft-no">忽略</button>';
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    var ok = el.querySelector('.draft-ok'), no = el.querySelector('.draft-no');
+    ok.addEventListener('click', function(){
+      ok.disabled = true; ok.textContent = '写入中…';
+      if(intent) subjectDetectIgnored[intent] = 'ok';
+      window.workplace.aiConfirmDraft(draft).then(function(r){
+        if(r && r.ok){
+          el.innerHTML = '<div class="draft-txt">已写入「<b>' + esc(draft.type) + '</b>」：' + esc(draft.props['标题'] || '') + '</div>';
+          toast('已添加「' + draft.type + '」');
+          loadData();
+        } else {
+          ok.disabled = false; ok.textContent = '确认写入';
+          toast('写入失败：' + ((r && r.error) || '未知'));
+        }
+      }).catch(function(){ ok.disabled = false; ok.textContent = '确认写入'; toast('写入失败'); });
+    });
+    no.addEventListener('click', function(){
+      if(intent) subjectDetectIgnored[intent] = Date.now();
+      el.innerHTML = '<div class="draft-txt" style="color:var(--g4)">已忽略</div>';
+    });
+  }
+  function runDetectSubject(convId){
+    if(!aiAvailable() || !window.workplace.aiDetect) return;
+    window.workplace.convOpen(convId).then(function(r){
+      if(!r || !r.ok) return;
+      var msgs = (r.messages || []).map(function(m){ return { role: m.role, content: m.content }; });
+      if(msgs.length < 2) return;
+      window.workplace.aiDetect(msgs.slice(-8)).then(function(j){
+        if(!j || !j.ok || !j.hit) return;
+        var intent = j.intent || (j.draft ? j.draft.type : '');
+        var now = Date.now();
+        if(intent && (subjectDetectIgnored[intent] === 'ok' || (typeof subjectDetectIgnored[intent] === 'number' && now - subjectDetectIgnored[intent] < 60000))) return;
+        if(j.draft) showSubjectDraftCard(j.draft, intent);
+        else if(j.notice){
+          var log = $('subjectChatLog');
+          if(log){
+            var el = document.createElement('div');
+            el.className = 'draft-inline';
+            el.style.borderColor = 'var(--g3)';
+            el.innerHTML = '<div class="draft-txt">💡 ' + esc(j.notice || '') + '</div><button class="btn btn-sm btn-ghost notice-ok">知道了</button>';
+            log.appendChild(el); log.scrollTop = log.scrollHeight;
+            el.querySelector('.notice-ok').addEventListener('click', function(){ if(intent) subjectDetectIgnored[intent] = Date.now(); el.innerHTML = '<div class="draft-txt" style="color:var(--g4)">💡 ' + esc(j.notice || '') + '</div>'; });
+          }
+        }
+      }).catch(function(){});
+    }).catch(function(){});
+  }
   function runMemExtractSubject(convId){
     if(!aiAvailable() || !window.workplace.memExtract) return;
     window.workplace.convOpen(convId).then(function(r){
@@ -4372,6 +4431,7 @@ textarea.f-input{resize:vertical;min-height:76px}
         setSubjectMeta(r.usage);
         renderSubjectList();
         runMemExtractSubject(subjectAiCurrent);
+        runDetectSubject(subjectAiCurrent);
       } else {
         if(aiEl) aiEl.textContent = '出错了：' + ((r && r.error) || '未知');
         setSubjectMetaText('请求失败');
