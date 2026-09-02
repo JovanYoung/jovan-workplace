@@ -134,6 +134,15 @@ body.nav-bottom #bottomTabs{display:none}
 .chat-select:focus{outline:none;border-color:var(--orange)}
 .chat-log{flex:1;overflow-y:auto;border:1px solid var(--g1);border-radius:12px;background:var(--surface);padding:14px;display:flex;flex-direction:column;gap:10px}
 .chat-msg{max-width:82%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.chat-msg p{margin:4px 0;white-space:pre-wrap}
+.chat-msg h1,.chat-msg h2,.chat-msg h3,.chat-msg h4{margin:8px 0 4px;font-size:1.05em;font-weight:600;color:var(--ink2)}
+.chat-msg ul{margin:4px 0;padding-left:20px}
+.chat-msg li{margin:2px 0}
+.chat-msg code{background:rgba(120,100,60,.14);border-radius:4px;padding:0 4px;font-family:ui-monospace,Consolas,monospace;font-size:.9em}
+.chat-msg pre{background:rgba(120,100,60,.08);border-radius:8px;padding:8px 10px;overflow-x:auto;margin:6px 0;white-space:pre-wrap}
+.chat-msg pre code{background:none;padding:0}
+.chat-msg a{color:var(--orange-d)}
+.chat-msg blockquote{border-left:3px solid var(--g2);margin:6px 0;padding:2px 10px;color:var(--g4)}
 .chat-msg.user{align-self:flex-end;background:var(--orange);color:#fff;border-bottom-right-radius:4px}
 .chat-msg.ai{align-self:flex-start;background:var(--g1);color:var(--ink);border-bottom-left-radius:4px}
 .chat-empty{color:var(--g4);font-size:13px;text-align:center;margin:auto}
@@ -3822,6 +3831,46 @@ textarea.f-input{resize:vertical;min-height:76px}
     sel.innerHTML = opts.map(function(o){ return '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>'; }).join('');
   }
 
+  // ---- minimal markdown renderer (zero-dep, XSS-safe: escape first) ----
+  function mdInline(x){
+    x = x.replace(/`([^`]+)`/g, '<code>$1</code>');
+    x = x.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    x = x.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+    x = x.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    return x;
+  }
+  function renderMarkdown(t){
+    if(!t) return '';
+    var s = esc(t);
+    var lines = s.split('\n'), out = [], inCode = false, codeBuf = [];
+    for(var i = 0; i < lines.length; i++){
+      var ln = lines[i];
+      if(/^\s*```/.test(ln)){
+        if(inCode){ out.push('<pre><code>' + codeBuf.join('\n') + '</code></pre>'); codeBuf = []; inCode = false; }
+        else inCode = true;
+        continue;
+      }
+      if(inCode){ codeBuf.push(ln); continue; }
+      if(ln.trim() === ''){ continue; }
+      var h = ln.match(/^(#{1,4})\s+(.*)/);
+      if(h){ var lv = h[1].length; out.push('<h' + lv + '>' + mdInline(h[2]) + '</h' + lv + '>'); continue; }
+      var ul = ln.match(/^[-*•]\s+(.*)/);
+      if(ul){ out.push('<li>' + mdInline(ul[1]) + '</li>'); continue; }
+      var ol = ln.match(/^\d+[.、)]\s+(.*)/);
+      if(ol){ out.push('<li>' + mdInline(ol[1]) + '</li>'); continue; }
+      if(/^>\s?/.test(ln)){ out.push('<blockquote>' + mdInline(ln.replace(/^>\s?/, '')) + '</blockquote>'); continue; }
+      out.push('<p>' + mdInline(ln) + '</p>');
+    }
+    if(inCode) out.push('<pre><code>' + codeBuf.join('\n') + '</code></pre>');
+    var html = out.join('\n');
+    html = html.replace(/((?:<li>[\s\S]*?<\/li>\n?)+)/g, '<ul>$1</ul>');
+    return html;
+  }
+  function setAiHtml(el, text){
+    if(!el) return;
+    var c = text || '';
+    el.innerHTML = renderMarkdown(c);
+  }
   function appendChatMsg(role, text){
     var log = $('chatLog');
     if(!log) return null;
@@ -3829,7 +3878,8 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(empty) empty.remove();
     var el = document.createElement('div');
     el.className = 'chat-msg ' + role;
-    el.textContent = text;
+    if(role === 'ai' && text){ el.innerHTML = renderMarkdown(text); }
+    else el.textContent = text;
     log.appendChild(el);
     chatLogScroll();
     return el;
@@ -3964,12 +4014,12 @@ textarea.f-input{resize:vertical;min-height:76px}
       if(ev.type === 'tool-start'){ agentToolTrace.push({ name: ev.name, args: ev.args }); agentStep(ev.name, 'doing', ev.args && ev.args['标题'] ? '：' + ev.args['标题'] : ''); }
       else if(ev.type === 'tool-done'){ agentStep(ev.name, 'ok', ''); }
       else if(ev.type === 'draft'){ showDraftCard(ev.draft); }
-      else if(ev.type === 'done'){ if(chatAiEl) chatAiEl.textContent = ev.content || ''; setChatMeta(ev.usage, ev.usage); chatLogScroll(); }
+      else if(ev.type === 'done'){ if(chatAiEl) chatAiEl.innerHTML = renderMarkdown(ev.content || ''); setChatMeta(ev.usage, ev.usage); chatLogScroll(); }
     }).then(function(r){
       btn.disabled = false; btn.textContent = '发送';
       if(r && r.ok){
         chatHistory.push({ role: 'assistant', content: r.content });
-        if(chatAiEl && !chatAiEl.textContent) chatAiEl.textContent = r.content || '（无内容）';
+        if(chatAiEl && !chatAiEl.textContent) chatAiEl.innerHTML = renderMarkdown(r.content || '（无内容）');
         setChatMeta(r.usage, r.usage);
         chatLogScroll();
         // Step 4: proactive intent detection after the turn.
@@ -4032,6 +4082,15 @@ textarea.f-input{resize:vertical;min-height:76px}
   }
   function factCategoryLabel(c){ return { pref:'偏好', correct:'纠正', habit:'习惯', background:'背景' }[c] || c; }
 
+  // Auto-save facts (M4 UX revision): no per-fact confirm card — facts are
+  // saved silently with a toast; traceable & deletable in Settings -> 记忆.
+  function autoSaveFact(c, sourceConv){
+    if(!c || !c.fact) return;
+    memBusy = false;
+    window.workplace.memConfirm({ fact: c.fact, category: c.category || 'pref', source_conv: sourceConv || null, source_ts: Date.now() }).then(function(r){
+      if(r && r.ok){ memConfirmed[c.fact] = true; toast('已记住：' + String(c.fact).slice(0, 30)); }
+    }).catch(function(){});
+  }
   function showMemCard(c, sourceConv){
     var log = $('chatLog');
     if(!log) return;
@@ -4069,7 +4128,7 @@ textarea.f-input{resize:vertical;min-height:76px}
         j.candidates.forEach(function(c){
           var now = Date.now();
           if(memConfirmed[c.fact] || (memIgnored[c.fact] && now - memIgnored[c.fact] < 60000)) return;
-          showMemCard(c, null);
+          autoSaveFact(c, null);
         });
       }
     }).catch(function(){ memBusy = false; });
@@ -4145,7 +4204,7 @@ textarea.f-input{resize:vertical;min-height:76px}
           j.candidates.forEach(function(c){
             var now = Date.now();
             if(memConfirmed[c.fact] || (memIgnored[c.fact] && now - memIgnored[c.fact] < 60000)) return;
-            showMemCard(c, convId);
+            autoSaveFact(c, convId);
           });
         }
       }).catch(function(){});
@@ -4363,7 +4422,8 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(empty) empty.remove();
     var el = document.createElement('div');
     el.className = 'chat-msg ' + role;
-    el.textContent = text;
+    if(role === 'ai' && text){ el.innerHTML = renderMarkdown(text); }
+    else el.textContent = text;
     log.appendChild(el);
     log.scrollTop = log.scrollHeight;
     return el;
@@ -4427,7 +4487,7 @@ textarea.f-input{resize:vertical;min-height:76px}
       btn.disabled = false; btn.textContent = '发送';
       subjectAiBusy = false;
       if(r && r.ok){
-        if(aiEl && !aiEl.textContent) aiEl.textContent = r.content || '（无内容）';
+        if(aiEl){ aiEl.innerHTML = renderMarkdown(aiEl.textContent || r.content || '（无内容）'); }
         setSubjectMeta(r.usage);
         renderSubjectList();
         runMemExtractSubject(subjectAiCurrent);
