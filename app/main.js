@@ -231,6 +231,14 @@ function registerIpc() {
   ipcMain.handle('conv:rename', (e, id, title) => conv.renameConversation(id, title));
   ipcMain.handle('conv:clear', (e, id) => conv.clearConversation(id));
   ipcMain.handle('conv:search', (e, q) => conv.search(q));
+  // 1.1: append a single message (used to persist main-Agent turns)
+  ipcMain.handle('conv:append', (e, id, role, content) => {
+    try {
+      if (!conv.getConversation(id)) return { ok: false, error: '会话不存在' };
+      conv.appendMessage(id, role, content);
+      return { ok: true };
+    } catch (err) { return { ok: false, error: String(err.message || err) }; }
+  });
   ipcMain.handle('conv:send', async (e, id, provider, model, text, thinking) => {
     const sender = e.sender;
     try {

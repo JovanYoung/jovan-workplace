@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('workplace', {
   convRename: (id, title) => ipcRenderer.invoke('conv:rename', id, title),
   convClear: (id) => ipcRenderer.invoke('conv:clear', id),
   convSearch: (q) => ipcRenderer.invoke('conv:search', q),
+  // 1.1: persist main-Agent turns into conversations.db
+  convAppend: (id, role, content) => ipcRenderer.invoke('conv:append', id, role, content),
   convSend: (id, provider, model, text, thinking, onChunk) => {
     const listener = (e, data) => { if (typeof onChunk === 'function') onChunk(data); };
     ipcRenderer.on('conv:chunk', listener);
