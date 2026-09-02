@@ -10,6 +10,7 @@ const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 const data = require('./data.js');
 const ai = require('./ai.js');
+const skills = require('./skills.js');
 
 // Window compression thresholds (rounds = user+assistant pair = 2 messages).
 const WINDOW_MAX = 20;      // compress once total messages exceed 20 rounds
@@ -44,6 +45,15 @@ function init() {
     );
     CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conv_id);
     CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(content, tokenize='trigram');
+    CREATE TABLE IF NOT EXISTS facts (
+      id TEXT PRIMARY KEY,
+      fact TEXT NOT NULL,              -- fact content ("用户雅思备考中")
+      category TEXT DEFAULT 'pref',    -- pref=偏好 / correct=纠正 / habit=习惯 / background=背景
+      source_conv TEXT,                -- evidence: source conversation id (null = manual/Agent)
+      source_ts INTEGER,               -- evidence: timestamp
+      status TEXT DEFAULT 'active',    -- active / dismissed (soft delete)
+      created_at INTEGER
+    );
   `);
   return db;
 }
@@ -191,6 +201,84 @@ function studyMaterials(subject, question) {
   });
 }
 
+// ---- L3 fact memory (facts table in the same SQLite db) ----
+const FACT_CATEGORIES = ['pref', 'correct', 'habit', 'background'];
+const FACT_CATEGORY_LABEL = { pref: '偏好', correct: '纠正', habit: '习惯', background: '背景' };
+const FACTS_INJECT_MAX = 30;  // defensive cap for active facts injected into system prompt
+
+function normCategory(c) {
+  const s = String(c || '').trim();
+  return FACT_CATEGORIES.indexOf(s) >= 0 ? s : 'pref';
+}
+
+function addFact(payload) {
+  init();
+  const fact = String((payload && payload.fact) || '').trim();
+  if (!fact) return { ok: false, error: '事实内容不能为空' };
+  const id = genId('f');
+  const t = now();
+  const row = {
+    id: id,
+    fact: fact,
+    category: normCategory(payload.category),
+    source_conv: (payload && payload.source_conv) || null,
+    source_ts: (payload && payload.source_ts) || t,
+    status: 'active',
+    created_at: t
+  };
+  db.prepare('INSERT INTO facts (id, fact, category, source_conv, source_ts, status, created_at) VALUES (?,?,?,?,?,?,?)')
+    .run(row.id, row.fact, row.category, row.source_conv, row.source_ts, row.status, row.created_at);
+  return { ok: true, fact: row };
+}
+
+function listFacts() {
+  init();
+  return db.prepare('SELECT * FROM facts ORDER BY created_at DESC').all();
+}
+
+function activeFacts() {
+  init();
+  return db.prepare("SELECT * FROM facts WHERE status = 'active' ORDER BY created_at DESC").all();
+}
+
+function deleteFact(id) {
+  init();
+  // Soft delete: keep the row (traceable) but mark dismissed so it stops being injected.
+  db.prepare("UPDATE facts SET status = 'dismissed' WHERE id = ?").run(id);
+  return { ok: true };
+}
+
+function confirmFact(payload) {
+  // Confirm-card write-back: same as addFact, keeps the IPC surface explicit.
+  return addFact(payload || {});
+}
+
+// Build the memory-injection block (facts + matched skills) for the system prompt.
+// subject/question are used to match skills and (optionally) order facts; facts are
+// grouped by category for readability and capped at FACTS_INJECT_MAX newest-first.
+function buildMemoryInjection(subject, question) {
+  let out = '';
+  const facts = activeFacts().slice(0, FACTS_INJECT_MAX);
+  if (facts.length) {
+    const byCat = {};
+    facts.forEach(function (f) { (byCat[f.category] = byCat[f.category] || []).push(f); });
+    const lines = [];
+    FACT_CATEGORIES.forEach(function (cat) {
+      (byCat[cat] || []).forEach(function (f) {
+        lines.push('· [' + (FACT_CATEGORY_LABEL[cat] || cat) + '] ' + f.fact);
+      });
+    });
+    out += '\n\n【关于 Jovan 的记忆】（以下是你已知的关于用户的持久事实，回答时自然运用，不要刻意复述）：\n' + lines.join('\n');
+  }
+  const hits = skills.hitSkills((subject ? subject + ' ' : '') + (question || ''));
+  if (hits.length) {
+    out += '\n\n以下技能可能适用（按其步骤执行，注意坑）：\n' + hits.map(function (s) {
+      return '· ' + s.name + '：' + s.场景;
+    }).join('\n');
+  }
+  return out;
+}
+
 function buildSystemPrompt(subject, question) {
   let base = ai.SYSTEM_PROMPT;
   const mats = studyMaterials(subject, question);
@@ -200,6 +288,7 @@ function buildSystemPrompt(subject, question) {
     }).join('\n');
     base += '\n\n以下是你的「' + subject + '」学科资料摘要（来自该学科的笔记/课件）。回答优先基于这些资料，资料没有覆盖的内容再用你的知识补充：\n' + block;
   }
+  base += buildMemoryInjection(subject, question);
   return base;
 }
 
@@ -269,5 +358,11 @@ module.exports = {
   search,
   compressIfNeeded,
   studyMaterials,
+  addFact,
+  listFacts,
+  activeFacts,
+  deleteFact,
+  confirmFact,
+  buildMemoryInjection,
   dbPath
 };

@@ -156,6 +156,35 @@ body.nav-bottom #bottomTabs{display:none}
 .draft-inline .draft-txt b{color:var(--orange-d)}
 .draft-inline .btn{flex-shrink:0}
 
+/* 记忆面板（M4：事实记忆 + 技能库） */
+.mem-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--g2);border-radius:10px;margin-bottom:6px;font-size:13px}
+.mem-item:hover{border-color:var(--orange)}
+.mem-cat{flex-shrink:0;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--g1);color:var(--g6)}
+.mem-cat.cat-pref{background:var(--orange-l);color:var(--orange-d)}
+.mem-cat.cat-correct{background:var(--danger-pale);color:var(--red)}
+.mem-cat.cat-habit{background:#EEF2FF;color:#4F46E5}
+.mem-cat.cat-background{background:#ECFDF5;color:#059669}
+.mem-fact{flex:1;min-width:0;color:var(--ink)}
+.mem-src{flex-shrink:0;font-size:11px;color:var(--g4);cursor:pointer}
+.mem-src:hover{color:var(--orange);text-decoration:underline}
+.mem-del{flex-shrink:0;font-size:11px;border:none;background:transparent;color:var(--g4);cursor:pointer}
+.mem-del:hover{color:var(--red)}
+.mem-toggle{flex-shrink:0;font-size:11px;border:none;background:transparent;color:var(--orange-d);cursor:pointer}
+.mem-toggle:hover{text-decoration:underline}
+.mem-skill{border:1px solid var(--g2);border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px}
+.mem-skill:hover{border-color:var(--orange)}
+.ms-head{display:flex;align-items:center;gap:8px}
+.ms-name{font-weight:600;color:var(--ink)}
+.ms-cat{font-size:11px;padding:1px 7px;border-radius:999px;background:var(--g1);color:var(--g6)}
+.ms-hits{margin-left:auto;font-size:11px;color:var(--g4)}
+.ms-scene{font-size:12px;color:var(--g5);margin-top:3px}
+.ms-detail{font-size:12px;color:var(--g5);margin-top:6px;line-height:1.6;white-space:pre-wrap}
+.ms-detail b{color:var(--ink2)}
+.mem-edit-row{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.mem-edit-row input,.mem-edit-row textarea,.mem-edit-row select{width:100%;padding:7px 9px;border:1px solid var(--g2);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--ink)}
+.mem-edit-row textarea{min-height:56px;resize:vertical}
+.mem-edit-actions{display:flex;gap:8px;margin-top:6px}
+
 .main{flex:1;min-width:0;padding:22px 26px 40px;max-width:1100px;margin:0 auto;width:100%}
 .topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 .page-title{font-size:20px;font-weight:500}
@@ -1128,6 +1157,7 @@ textarea.f-input{resize:vertical;min-height:76px}
         <button class="set-nav" data-panel="logs">操作日志</button>
         <button class="set-nav" data-panel="trash">回收站</button>
         <button class="set-nav" data-panel="parse">智能解析</button>
+        <button class="set-nav" data-panel="memory">记忆</button>
         <button class="set-nav" data-panel="shortcut">快捷键</button>
         <button class="set-nav" data-panel="about">关于</button>
       </div>
@@ -1190,6 +1220,19 @@ textarea.f-input{resize:vertical;min-height:76px}
           <div class="set-row"><span class="set-label">学习词典</span><span class="set-val" id="setDictCount">0 词条</span></div>
           <div class="set-actions"><button class="btn btn-sm btn-ghost" id="setDictClear" style="color:var(--red)">清空学习词典</button></div>
         </div>
+        <div class="set-panel" id="panel-memory" style="display:none">
+          <div class="set-title">事实记忆<span style="font-weight:400;margin-left:6px">AI 提炼的关于你的持久信息，可追溯来源，点来源可跳回原会话</span></div>
+          <div id="memFactList" style="max-height:230px;overflow-y:auto"></div>
+          <div class="set-actions"><button class="btn btn-sm btn-ghost" id="memAddFact">手动添加事实</button></div>
+          <div class="mem-edit-row" id="memFactEdit" style="display:none">
+            <input id="memFactInput" placeholder="事实内容，如：用户雅思备考中">
+            <select id="memFactCat"><option value="pref">偏好</option><option value="correct">纠正</option><option value="habit">习惯</option><option value="background">背景</option></select>
+            <div class="mem-edit-actions"><button class="btn btn-sm btn-primary" id="memFactSave">添加</button><button class="btn btn-sm btn-ghost" id="memFactCancel">取消</button></div>
+          </div>
+          <div class="set-title" style="margin-top:16px">技能库<span style="font-weight:400;margin-left:6px">从经验沉淀的可复用流程，可编辑/删除/禁用</span></div>
+          <div id="memSkillList" style="max-height:230px;overflow-y:auto"></div>
+          <div class="set-actions"><button class="btn btn-sm btn-ghost" id="memAddSkill">手动添加技能</button></div>
+        </div>
         <div class="set-panel" id="panel-shortcut" style="display:none">
           <div class="set-title">快捷键（点「修改」后按下新组合键录制，支持 Ctrl/Alt/Shift/Cmd 组合）</div>
           <div id="scList"></div>
@@ -1226,6 +1269,29 @@ textarea.f-input{resize:vertical;min-height:76px}
     <div class="modal-foot">
       <button class="btn btn-ghost" id="entityCancel">取消</button>
       <button class="btn btn-primary" id="entityOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="skillEditMask">
+  <div class="modal" style="width:560px;max-width:94vw">
+    <div class="modal-head">
+      <h3 id="skillEditTitle">编辑技能</h3>
+      <button class="modal-x" id="skillEditClose">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="mem-edit-row" style="padding:0 2px;max-height:60vh;overflow-y:auto">
+      <input id="skillEditName" placeholder="技能名（必填，2-8 字）">
+      <input id="skillEditScene" placeholder="场景：什么情况下用（一句话）">
+      <textarea id="skillEditSteps" placeholder="步骤：每行一个"></textarea>
+      <textarea id="skillEditPits" placeholder="坑：容易错在哪，每行一个"></textarea>
+      <input id="skillEditVerify" placeholder="验证：怎么确认做对（一句话）">
+      <select id="skillEditCat"><option value="通用">通用</option><option value="学习">学习</option><option value="日程">日程</option><option value="备忘">备忘</option><option value="亲友">亲友</option></select>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="skillEditCancel">取消</button>
+      <button class="btn btn-primary" id="skillEditOk">保存</button>
     </div>
   </div>
 </div>
@@ -3151,6 +3217,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(panel==='trash') renderTrash();
     if(panel==='shortcut') renderShortcutPanel();
     if(panel==='aimodel') renderAiProviders();
+    if(panel==='memory') renderMemory();
   }
   function openSettings(){
     if(hasWP){ window.workplace.getDataPath().then(function(p){ var el=$('setDataPath'); if(el&&p) el.textContent=p.dataFile; }); }
@@ -3171,6 +3238,45 @@ textarea.f-input{resize:vertical;min-height:76px}
     $('settingsMask').className='modal-mask show';
   }
   document.addEventListener('click',function(e){
+    // M4 memory panel interactions
+    if(e.target && e.target.id === 'memAddFact'){ memFactEditShow(); return; }
+    if(e.target && e.target.id === 'memFactSave'){ memFactSave(); return; }
+    if(e.target && e.target.id === 'memFactCancel'){ memFactEditHide(); return; }
+    if(e.target && e.target.id === 'memAddSkill'){ openSkillEdit(null); return; }
+    if(e.target && e.target.id === 'skillEditClose'){ closeSkillEdit(); return; }
+    if(e.target && e.target.id === 'skillEditCancel'){ closeSkillEdit(); return; }
+    if(e.target && e.target.id === 'skillEditOk'){ skillEditSave(); return; }
+    if(e.target && e.target.id === 'skillEditMask'){ closeSkillEdit(); return; }
+    var memSrc=e.target.closest?e.target.closest('.mem-src'):null;
+    if(memSrc){
+      var mItem=memSrc.closest('.mem-item');
+      var mCid=mItem?mItem.getAttribute('data-src'):'';
+      if(mCid){ openSubjectAiConv(mCid); } else { toast('该事实来自临时 Agent 对话，无历史记录可跳转'); }
+      return;
+    }
+    var memDel=e.target.closest?e.target.closest('.mem-del'):null;
+    if(memDel){
+      var dId=memDel.getAttribute('data-id');
+      if(memDel.closest('#memSkillList')){
+        window.workplace.skillDelete(dId).then(function(){ renderMemSkills(); toast('已删除技能'); }).catch(function(){});
+      } else {
+        window.workplace.memDelete(dId).then(function(){ renderMemFacts(); toast('已删除事实'); }).catch(function(){});
+      }
+      return;
+    }
+    var memToggle=e.target.closest?e.target.closest('.mem-toggle'):null;
+    if(memToggle){
+      var tId=memToggle.getAttribute('data-id');
+      if(memToggle.getAttribute('data-edit') === '1'){
+        window.workplace.skillList().then(function(list){
+          var s=null; (list||[]).forEach(function(x){ if(x.id===tId) s=x; });
+          if(s) openSkillEdit(s);
+        }).catch(function(){});
+      } else {
+        window.workplace.skillToggle(tId).then(function(){ renderMemSkills(); }).catch(function(){});
+      }
+      return;
+    }
     var nav=e.target.closest?e.target.closest('.set-nav'):null;
     if(nav){
       if(nav.classList.contains('has-sub')){
@@ -3850,11 +3956,12 @@ textarea.f-input{resize:vertical;min-height:76px}
     var btn = $('chatSend');
     btn.disabled = true; btn.textContent = '回复中…';
     agentStepReset();
+    agentToolTrace = [];
 
     var thinking = thinkKey();
     window.workplace.aiAgent(provider, model, chatHistory.slice(), thinking, function(ev){
       if(!ev) return;
-      if(ev.type === 'tool-start'){ agentStep(ev.name, 'doing', ev.args && ev.args['标题'] ? '：' + ev.args['标题'] : ''); }
+      if(ev.type === 'tool-start'){ agentToolTrace.push({ name: ev.name, args: ev.args }); agentStep(ev.name, 'doing', ev.args && ev.args['标题'] ? '：' + ev.args['标题'] : ''); }
       else if(ev.type === 'tool-done'){ agentStep(ev.name, 'ok', ''); }
       else if(ev.type === 'draft'){ showDraftCard(ev.draft); }
       else if(ev.type === 'done'){ if(chatAiEl) chatAiEl.textContent = ev.content || ''; setChatMeta(ev.usage, ev.usage); chatLogScroll(); }
@@ -3867,6 +3974,9 @@ textarea.f-input{resize:vertical;min-height:76px}
         chatLogScroll();
         // Step 4: proactive intent detection after the turn.
         runDetect();
+        // M4: L3 fact distillation + G2 skill distillation after the turn.
+        runMemExtract();
+        maybeDistillSkill(r.rounds);
       } else {
         if(chatAiEl) chatAiEl.textContent = '出错了：' + ((r && r.error) || '未知');
         setChatMetaText('请求失败');
@@ -3906,6 +4016,228 @@ textarea.f-input{resize:vertical;min-height:76px}
     agentStepReset();
     showAgentSteps(false);
     setChatMetaText('');
+  }
+
+  // ---- M4: L3 fact memory + G2 skill library (renderer) ----
+  var agentToolTrace = [];   // tool calls collected during the current Agent turn
+  var memBusy = false;
+  var memIgnored = {};       // fact -> timestamp (60s dedup)
+  var memConfirmed = {};     // fact -> true (confirmed this session)
+  var skillBusy = false;
+
+  function tsDate(ts){
+    var d = new Date(ts || Date.now());
+    var p = function(n){ return n < 10 ? '0' + n : '' + n; };
+    return (d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  function factCategoryLabel(c){ return { pref:'偏好', correct:'纠正', habit:'习惯', background:'背景' }[c] || c; }
+
+  function showMemCard(c, sourceConv){
+    var log = $('chatLog');
+    if(!log) return;
+    var el = document.createElement('div');
+    el.className = 'draft-inline';
+    el.innerHTML = '<div class="draft-txt">🧠 要记住吗：<b>' + esc(c.fact) + '</b></div>' +
+      '<button class="btn btn-sm btn-primary mem-ok">记住</button>' +
+      '<button class="btn btn-sm btn-ghost mem-no">忽略</button>';
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    var ok = el.querySelector('.mem-ok'), no = el.querySelector('.mem-no');
+    ok.addEventListener('click', function(){
+      ok.disabled = true; ok.textContent = '记录中…';
+      window.workplace.memConfirm({ fact: c.fact, category: c.category, source_conv: sourceConv || null, source_ts: Date.now() }).then(function(r){
+        if(r && r.ok){
+          memConfirmed[c.fact] = true;
+          el.innerHTML = '<div class="draft-txt">🧠 已记住：<b>' + esc(c.fact) + '</b></div>';
+          toast('已记住');
+        } else { ok.disabled = false; ok.textContent = '记住'; toast('记录失败：' + ((r && r.error) || '未知')); }
+      }).catch(function(){ ok.disabled = false; ok.textContent = '记住'; toast('记录失败'); });
+    });
+    no.addEventListener('click', function(){
+      memIgnored[c.fact] = Date.now();
+      el.innerHTML = '<div class="draft-txt" style="color:var(--g4)">已忽略</div>';
+    });
+  }
+
+  function runMemExtract(){
+    if(!aiAvailable() || !window.workplace.memExtract) return;
+    if(memBusy) return;
+    memBusy = true;
+    window.workplace.memExtract(chatHistory.slice()).then(function(j){
+      memBusy = false;
+      if(j && j.ok && j.candidates && j.candidates.length){
+        j.candidates.forEach(function(c){
+          var now = Date.now();
+          if(memConfirmed[c.fact] || (memIgnored[c.fact] && now - memIgnored[c.fact] < 60000)) return;
+          showMemCard(c, null);
+        });
+      }
+    }).catch(function(){ memBusy = false; });
+  }
+
+  function runMemExtractSubject(convId){
+    if(!aiAvailable() || !window.workplace.memExtract) return;
+    window.workplace.convOpen(convId).then(function(r){
+      if(!r || !r.ok) return;
+      var msgs = (r.messages || []).map(function(m){ return { role: m.role, content: m.content }; });
+      if(msgs.length < 2) return;
+      window.workplace.memExtract(msgs.slice(-8)).then(function(j){
+        if(j && j.ok && j.candidates && j.candidates.length){
+          j.candidates.forEach(function(c){
+            var now = Date.now();
+            if(memConfirmed[c.fact] || (memIgnored[c.fact] && now - memIgnored[c.fact] < 60000)) return;
+            showMemCard(c, convId);
+          });
+        }
+      }).catch(function(){});
+    }).catch(function(){});
+  }
+
+  function showSkillCard(d){
+    var log = $('chatLog');
+    if(!log) return;
+    var el = document.createElement('div');
+    el.className = 'draft-inline';
+    el.innerHTML = '<div class="draft-txt">🛠 要把这次做法存成技能吗：<b>' + esc(d.name) + '</b>（' + esc(d.场景 || '') + '）</div>' +
+      '<button class="btn btn-sm btn-primary skill-ok">存</button>' +
+      '<button class="btn btn-sm btn-ghost skill-no">不存</button>';
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    var ok = el.querySelector('.skill-ok'), no = el.querySelector('.skill-no');
+    ok.addEventListener('click', function(){
+      ok.disabled = true; ok.textContent = '保存中…';
+      var payload = { name: d.name, 场景: d.场景 || '', 步骤: d.步骤 || [], 坑: d.坑 || [], 验证: d.验证 || '', category: d.category || '通用' };
+      window.workplace.skillSave(payload).then(function(r){
+        if(r && r.ok){
+          el.innerHTML = '<div class="draft-txt">🛠 已存为技能：<b>' + esc(d.name) + '</b></div>';
+          toast('已存为技能');
+        } else { ok.disabled = false; ok.textContent = '存'; toast('保存失败：' + ((r && r.error) || '未知')); }
+      }).catch(function(){ ok.disabled = false; ok.textContent = '存'; toast('保存失败'); });
+    });
+    no.addEventListener('click', function(){
+      el.innerHTML = '<div class="draft-txt" style="color:var(--g4)">已忽略</div>';
+    });
+  }
+
+  function maybeDistillSkill(rounds){
+    if(!aiAvailable() || !window.workplace.skillExtract) return;
+    if(!(rounds >= 3)) return;
+    if(skillBusy) return;
+    skillBusy = true;
+    window.workplace.skillExtract(chatHistory.slice(), agentToolTrace.slice()).then(function(j){
+      skillBusy = false;
+      if(j && j.ok && j.data && j.data.有技能) showSkillCard(j.data);
+    }).catch(function(){ skillBusy = false; });
+  }
+
+  // ---- memory management panel (settings) ----
+  function renderMemory(){
+    if(!hasWP || !window.workplace.memList) return;
+    renderMemFacts();
+    renderMemSkills();
+  }
+  function renderMemFacts(){
+    var box = $('memFactList');
+    if(!box) return;
+    window.workplace.memList().then(function(list){
+      var facts = (list || []).filter(function(f){ return f.status === 'active'; });
+      if(!facts.length){ box.innerHTML = '<div class="list-empty" style="font-size:12px">还没有记忆事实（对话中 AI 会主动询问是否记住）</div>'; return; }
+      window.workplace.convList().then(function(convs){
+        var titleMap = {};
+        (convs || []).forEach(function(c){ titleMap[c.id] = c.subject || c.title || ''; });
+        var html = '';
+        facts.forEach(function(f){
+          var src;
+          if(f.source_conv && titleMap[f.source_conv]){
+            src = '来自「' + titleMap[f.source_conv] + '」会话 · ' + tsDate(f.source_ts);
+          } else {
+            src = '来自 Agent 对话 · ' + tsDate(f.source_ts);
+          }
+          html += '<div class="mem-item" data-id="' + esc(f.id) + '" data-src="' + esc(f.source_conv || '') + '">';
+          html += '<span class="mem-cat cat-' + esc(f.category) + '">' + esc(factCategoryLabel(f.category)) + '</span>';
+          html += '<span class="mem-fact">' + esc(f.fact) + '</span>';
+          html += '<span class="mem-src" title="点击跳回原会话">' + esc(src) + '</span>';
+          html += '<button class="mem-del" data-id="' + esc(f.id) + '">删除</button>';
+          html += '</div>';
+        });
+        box.innerHTML = html;
+      }).catch(function(){});
+    }).catch(function(){});
+  }
+  function renderMemSkills(){
+    var box = $('memSkillList');
+    if(!box) return;
+    window.workplace.skillList().then(function(list){
+      if(!(list || []).length){ box.innerHTML = '<div class="list-empty" style="font-size:12px">还没有技能（完成多步 Agent 任务后 AI 会建议存为技能）</div>'; return; }
+      var html = '';
+      (list || []).forEach(function(s){
+        html += '<div class="mem-skill" data-id="' + esc(s.id) + '">';
+        html += '<div class="ms-head"><span class="ms-name">' + esc(s.name) + '</span><span class="ms-cat">' + esc(s.category || '通用') + '</span>';
+        html += '<span class="ms-hits">命中 ' + (s.hits || 0) + (s.disabled ? ' · 已禁用' : '') + '</span>';
+        html += '<button class="mem-toggle" data-id="' + esc(s.id) + '">' + (s.disabled ? '启用' : '禁用') + '</button>';
+        html += '<button class="mem-del" data-id="' + esc(s.id) + '">删除</button>';
+        html += '<button class="mem-toggle" data-id="' + esc(s.id) + '" data-edit="1">编辑</button></div>';
+        html += '<div class="ms-scene">' + esc(s.场景 || '') + '</div>';
+        html += '</div>';
+      });
+      box.innerHTML = html;
+    }).catch(function(){});
+  }
+
+  function openSubjectAiConv(cid){
+    if(!subjectAiAvail()){ toast('仅桌面版支持学科 AI'); return; }
+    $('subjectAiMask').className = 'modal-mask show';
+    renderSubjectModelSel();
+    renderSubjectList();
+    selectSubject(cid);
+  }
+
+  // ---- manual add fact (inline) ----
+  function memFactEditShow(){
+    var row = $('memFactEdit');
+    if(row){ row.style.display = (row.style.display === 'none' ? 'flex' : 'none'); if(row.style.display === 'flex'){ var i=$('memFactInput'); if(i) i.focus(); } }
+  }
+  function memFactEditHide(){ var row = $('memFactEdit'); if(row) row.style.display = 'none'; }
+  function memFactSave(){
+    var fact = ($('memFactInput') ? $('memFactInput').value : '').trim();
+    var cat = ($('memFactCat') ? $('memFactCat').value : 'pref');
+    if(!fact){ toast('请输入事实内容'); return; }
+    window.workplace.memAdd({ fact: fact, category: cat, source_conv: null, source_ts: Date.now() }).then(function(r){
+      if(r && r.ok){ memFactEditHide(); if($('memFactInput')) $('memFactInput').value = ''; renderMemFacts(); toast('已添加'); }
+      else toast('添加失败：' + ((r && r.error) || '未知'));
+    }).catch(function(){ toast('添加失败'); });
+  }
+
+  // ---- manual add / edit skill (modal) ----
+  var skillEditId = null;   // null = create new, else edit existing id
+  function openSkillEdit(skill){
+    skillEditId = skill ? skill.id : null;
+    if($('skillEditTitle')) $('skillEditTitle').textContent = skill ? '编辑技能' : '新增技能';
+    if($('skillEditName')) $('skillEditName').value = skill ? (skill.name || '') : '';
+    if($('skillEditScene')) $('skillEditScene').value = skill ? (skill.场景 || '') : '';
+    if($('skillEditSteps')) $('skillEditSteps').value = skill ? ((skill.步骤 || []).join('\n')) : '';
+    if($('skillEditPits')) $('skillEditPits').value = skill ? ((skill.坑 || []).join('\n')) : '';
+    if($('skillEditVerify')) $('skillEditVerify').value = skill ? (skill.验证 || '') : '';
+    if($('skillEditCat')) $('skillEditCat').value = skill ? (skill.category || '通用') : '通用';
+    $('skillEditMask').className = 'modal-mask show';
+  }
+  function closeSkillEdit(){ skillEditId = null; $('skillEditMask').className = 'modal-mask'; }
+  function skillEditSave(){
+    var name = ($('skillEditName') ? $('skillEditName').value : '').trim();
+    if(!name){ toast('请输入技能名'); return; }
+    var payload = {
+      name: name,
+      场景: ($('skillEditScene') ? $('skillEditScene').value : '').trim(),
+      步骤: ($('skillEditSteps') ? $('skillEditSteps').value : '').trim(),
+      坑: ($('skillEditPits') ? $('skillEditPits').value : '').trim(),
+      验证: ($('skillEditVerify') ? $('skillEditVerify').value : '').trim(),
+      category: ($('skillEditCat') ? $('skillEditCat').value : '通用')
+    };
+    if(skillEditId) payload.id = skillEditId;
+    window.workplace.skillSave(payload).then(function(r){
+      if(r && r.ok){ closeSkillEdit(); renderMemSkills(); toast(skillEditId ? '已更新' : '已添加'); }
+      else toast('保存失败：' + ((r && r.error) || '未知'));
+    }).catch(function(){ toast('保存失败'); });
   }
 
   // ---- 学科 AI（M3）----
@@ -4039,6 +4371,7 @@ textarea.f-input{resize:vertical;min-height:76px}
         if(aiEl && !aiEl.textContent) aiEl.textContent = r.content || '（无内容）';
         setSubjectMeta(r.usage);
         renderSubjectList();
+        runMemExtractSubject(subjectAiCurrent);
       } else {
         if(aiEl) aiEl.textContent = '出错了：' + ((r && r.error) || '未知');
         setSubjectMetaText('请求失败');

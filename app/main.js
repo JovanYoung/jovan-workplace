@@ -11,6 +11,8 @@ const ai = require('./ai.js');
 const tools = require('./tools.js');
 const parse = require('./parse.js');
 const conv = require('./conv.js');
+const mem = require('./mem.js');
+const skills = require('./skills.js');
 
 const APP_NAME = "Jovan's Workplace";
 const DEFAULT_DATA_DIR = path.join('D:', "Jovan's Workplace", 'data');
@@ -169,7 +171,12 @@ function registerIpc() {
   // ---- Agent tool loop (Step 1+2): model may call workbench tools; events streamed ----
   ipcMain.handle('ai:agent', async (e, provider, model, messages, thinking) => {
     const sender = e.sender;
-    const full = [{ role: 'system', content: ai.SYSTEM_PROMPT + '你可以调用工具查询或新建工作台数据（日程/任务/备忘/亲友/学习）。写操作会生成草稿，需用户确认后才真正写入。' }].concat(messages || []);
+    const msgs = messages || [];
+    let lastUser = '';
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i] && msgs[i].role === 'user') { lastUser = msgs[i].content || ''; break; }
+    }
+    const full = [{ role: 'system', content: ai.SYSTEM_PROMPT + '你可以调用工具查询或新建工作台数据（日程/任务/备忘/亲友/学习）。写操作会生成草稿，需用户确认后才真正写入。' + conv.buildMemoryInjection(null, lastUser) }].concat(msgs);
     try {
       const r = await ai.runAgentLoop({
         provider: provider,
@@ -234,6 +241,26 @@ function registerIpc() {
     } catch (err) {
       return { ok: false, error: String(err.message || err) };
     }
+  });
+
+  // ---- L3 fact memory (M4): distill in mem.js, persist in conv.js (same db) ----
+  ipcMain.handle('mem:extract', async (e, messages) => {
+    try { return await mem.extractFacts(messages); }
+    catch (err) { return { ok: false, error: String(err.message || err) }; }
+  });
+  ipcMain.handle('mem:add', (e, payload) => conv.addFact(payload || {}));
+  ipcMain.handle('mem:confirm', (e, payload) => conv.confirmFact(payload || {}));
+  ipcMain.handle('mem:list', () => conv.listFacts());
+  ipcMain.handle('mem:delete', (e, id) => conv.deleteFact(id));
+
+  // ---- G2 skill library (M4) ----
+  ipcMain.handle('skill:list', () => skills.listSkills());
+  ipcMain.handle('skill:save', (e, payload) => skills.saveSkill(payload || {}));
+  ipcMain.handle('skill:delete', (e, id) => skills.deleteSkill(id));
+  ipcMain.handle('skill:toggle', (e, id) => skills.toggleSkill(id));
+  ipcMain.handle('skill:extract', async (e, conversation, toolTrace) => {
+    try { return await skills.extractSkill(conversation, toolTrace); }
+    catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
 
   ipcMain.handle('dialog:export', (e, json, suggestedName) => {

@@ -55,5 +55,17 @@ contextBridge.exposeInMainWorld('workplace', {
     return ipcRenderer.invoke('conv:send', id, provider, model, text, thinking).finally(function () {
       ipcRenderer.removeListener('conv:chunk', listener);
     });
-  }
+  },
+  // L3 fact memory (M4)
+  memExtract: (messages) => ipcRenderer.invoke('mem:extract', messages),
+  memAdd: (payload) => ipcRenderer.invoke('mem:add', payload),
+  memConfirm: (payload) => ipcRenderer.invoke('mem:confirm', payload),
+  memList: () => ipcRenderer.invoke('mem:list'),
+  memDelete: (id) => ipcRenderer.invoke('mem:delete', id),
+  // G2 skill library (M4)
+  skillList: () => ipcRenderer.invoke('skill:list'),
+  skillSave: (payload) => ipcRenderer.invoke('skill:save', payload),
+  skillDelete: (id) => ipcRenderer.invoke('skill:delete', id),
+  skillToggle: (id) => ipcRenderer.invoke('skill:toggle', id),
+  skillExtract: (conversation, toolTrace) => ipcRenderer.invoke('skill:extract', conversation, toolTrace)
 });
