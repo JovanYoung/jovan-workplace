@@ -25,10 +25,15 @@ function dictClear() {
 }
 
 // ---- default model selection (prefer deepseek-v4-flash, fall back to any configured) ----
-function pickDefaultModel() {
+// preferPro=true picks deepseek-v4-pro (higher accuracy for low-confidence re-parse).
+function pickDefaultModel(preferPro) {
   const providers = ai.listProviders();
   const deepseek = providers.find(function (p) { return p.id === 'deepseek'; });
   if (deepseek && deepseek.configured) {
+    if (preferPro) {
+      const pro = (deepseek.models || []).find(function (m) { return m.name === 'deepseek-v4-pro'; });
+      if (pro) return { provider: 'deepseek', model: 'deepseek-v4-pro' };
+    }
     const flash = (deepseek.models || []).find(function (m) { return m.name === 'deepseek-v4-flash'; });
     if (flash) return { provider: 'deepseek', model: 'deepseek-v4-flash' };
     if (deepseek.models && deepseek.models.length) return { provider: 'deepseek', model: deepseek.models[0].name };
@@ -54,8 +59,8 @@ const PARSE_SCHEMA_HINT =
   '优先级 ∈ [紧急且重要, 重要但不紧急, 紧急但不重要, 不重要也不紧急]，可留空；' +
   '日期用 YYYY-MM-DD，相对日期（明天/周五/下周X）请按今天换算成具体日期，无则空字符串；时间用 HH:MM，无则空字符串。';
 
-async function parse(text) {
-  const def = pickDefaultModel();
+async function parse(text, pro) {
+  const def = pickDefaultModel(!!pro);
   if (!def) return { ok: false, error: '未配置任何 AI 模型', parsed: null, confidence: 0 };
   const messages = [
     { role: 'system', content: '你是中文日程解析助手。把用户的一句话解析为结构化事项。' + todayCN() + PARSE_SCHEMA_HINT },
@@ -75,7 +80,10 @@ async function parse(text) {
   // Normalize + confidence.
   const type = tools.normType(p.类型) || '任务';
   const pri = tools.normPriority(p.优先级);
-  const date = tools.normalizeDate(p.日期) || '';
+  // M3 fix 1: local deterministic date resolution first (correct at month
+  // boundaries). If the raw text carries a relative date, trust normalizeDate
+  // over the model's own conversion, which can drift at month ends.
+  const date = tools.normalizeDate(text) || tools.normalizeDate(p.日期) || '';
   let confidence = 0.9;
   if (!tools.normType(p.类型)) confidence = 0.55;         // model guessed type
   if (pri && !tools.normPriority(p.优先级)) confidence = 0.6;
@@ -105,10 +113,14 @@ const DETECT_SCHEMA_HINT =
 async function detect(messages) {
   const def = pickDefaultModel();
   if (!def) return { ok: false, error: '未配置任何 AI 模型', hit: false };
+  // M3 fix 3: inject real workbench data so conflict/overdue judgement is grounded
+  // in actual schedules instead of the model's guesses.
+  let todayData = {};
+  try { todayData = tools.queryToday(); } catch (e) {}
   const r = await ai.jsonOutput({
     provider: def.provider, model: def.model,
     messages: [
-      { role: 'system', content: '你是意图检测助手。分析用户最近对话，判断是否出现了可执行的生活/学习意图并生成结构化草稿。' + todayCN() + DETECT_SCHEMA_HINT },
+      { role: 'system', content: '你是意图检测助手。分析用户最近对话，判断是否出现了可执行的生活/学习意图并生成结构化草稿。' + todayCN() + DETECT_SCHEMA_HINT + '\n当前工作台真实数据（判断冲突/逾期时以此为准，不可臆造）：' + JSON.stringify(todayData).slice(0, 1500) },
       { role: 'user', content: '最近对话：\n' + JSON.stringify(messages).slice(0, 3000) }
     ],
     validate: function (obj) {

@@ -273,5 +273,7 @@ module.exports = {
   normPriority,
   normType,
   PRIORITIES,
-  TYPES
+  TYPES,
+  queryToday,
+  querySchedules
 };

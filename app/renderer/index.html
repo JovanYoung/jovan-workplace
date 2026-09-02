@@ -454,6 +454,32 @@ body.nav-bottom #bottomTabs{display:none}
 .modal-head h3{font-size:17px;font-weight:500;flex:1}
 .modal-x{width:34px;height:34px;border-radius:10px;color:var(--g4);display:flex;align-items:center;justify-content:center}
 .modal-x:hover{background:var(--g1)}
+/* 学科 AI（M3） */
+.subject-ai-modal{max-width:960px;width:96vw}
+.subject-ai-search{display:flex;gap:10px;margin-bottom:12px}
+.subject-ai-search .f-input{flex:1;min-height:40px;padding:8px 12px}
+.subject-ai-search-results{margin-bottom:12px;max-height:180px;overflow-y:auto}
+.search-hit{display:flex;align-items:flex-start;gap:8px;padding:9px 12px;border:1px solid var(--g1);border-radius:10px;margin-bottom:6px;background:var(--surface);cursor:pointer;transition:border-color .15s}
+.search-hit:hover{border-color:var(--orange)}
+.search-hit .sh-subj{flex-shrink:0;font-size:11px;color:var(--orange-d);background:var(--orange-l);border-radius:6px;padding:1px 8px;margin-top:2px}
+.search-hit .sh-txt{flex:1;font-size:13px;color:var(--ink);line-height:1.5;word-break:break-word}
+.search-hit .sh-time{flex-shrink:0;font-size:11px;color:var(--g4)}
+.subject-ai-body{display:flex;gap:16px;height:62vh;min-height:380px}
+.subject-ai-list{width:190px;flex-shrink:0;overflow-y:auto;padding-right:10px;border-right:1px solid var(--g1)}
+.subject-ai-list .btn-dash{padding:10px;font-size:13px}
+.subject-ai-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--g2);border-radius:12px;margin-bottom:8px;cursor:pointer;background:var(--surface);transition:all .15s;font-size:14px}
+.subject-ai-item:hover{border-color:var(--orange)}
+.subject-ai-item.active{background:var(--orange-l);border-color:var(--orange);color:var(--orange-d);font-weight:500}
+.subject-ai-item .si-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.subject-ai-item .si-count{font-size:11px;color:var(--g4);flex-shrink:0}
+.subject-ai-item .si-ops{display:none;flex-shrink:0;gap:2px}
+.subject-ai-item.active .si-ops{display:inline-flex}
+.subject-ai-item .si-ops button{width:24px;height:24px;border-radius:6px;border:none;background:transparent;color:var(--g4);cursor:pointer;font-size:12px}
+.subject-ai-item .si-ops button:hover{background:var(--g1);color:var(--ink)}
+.subject-ai-chat{flex:1;display:flex;flex-direction:column;min-width:0}
+.subject-ai-chat .chat-log{flex:1;min-height:0}
+.subject-ai-chat .chat-toolbar{margin-bottom:8px}
+@media (max-width:720px){.subject-ai-body{flex-direction:column;height:auto}.subject-ai-list{width:100%;border-right:none;border-bottom:1px solid var(--g1);padding-bottom:8px;display:flex;flex-wrap:wrap;gap:6px}.subject-ai-item{margin-bottom:0}}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .f-item{display:flex;flex-direction:column;gap:5px}
 .f-item.full{grid-column:1/-1}
@@ -805,6 +831,50 @@ textarea.f-input{resize:vertical;min-height:76px}
     Agent
   </button>
 </nav>
+
+<div class="modal-mask" id="subjectAiMask">
+  <div class="modal subject-ai-modal">
+    <div class="modal-head">
+      <h3 id="subjectAiTitle">学科 AI</h3>
+      <button class="modal-x" id="subjectAiClose">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="subject-ai-search">
+      <input class="f-input" id="subjectAiSearch" placeholder="搜索历史对话（如：上次说的会议）">
+      <button class="btn btn-sm btn-ghost" id="subjectAiSearchBtn">搜索</button>
+    </div>
+    <div class="subject-ai-search-results" id="subjectAiSearchResults" style="display:none"></div>
+    <div class="subject-ai-search" id="subjectAiRenameRow" style="display:none">
+      <input class="f-input" id="subjectAiNameInput" placeholder="学科名称">
+      <button class="btn btn-sm btn-primary" id="subjectAiNameOk">确定</button>
+      <button class="btn btn-sm btn-ghost" id="subjectAiNameCancel">取消</button>
+    </div>
+    <div class="subject-ai-body">
+      <div class="subject-ai-list" id="subjectAiList"></div>
+      <div class="subject-ai-chat">
+        <div class="chat-toolbar">
+          <span class="set-label">模型</span>
+          <select class="chat-select" id="subjectModelSel"><option value="">未配置模型</option></select>
+          <span class="think-group" id="subjectThinkGroup" title="思考深度：关闭→最快最省，深→质量最高更贵">
+            <span>思考</span>
+            <input type="range" id="subjectThinkSlider" min="0" max="3" step="1" value="2">
+            <span class="think-val" id="subjectThinkVal">标准</span>
+          </span>
+          <button class="btn btn-sm btn-ghost" id="subjectChatClear">清空会话</button>
+        </div>
+        <div class="chat-log" id="subjectChatLog">
+          <div class="chat-empty">选择左侧学科，开始该学科的独立对话</div>
+        </div>
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="subjectChatInput" placeholder="输入问题，Enter 发送 / Shift+Enter 换行" rows="1"></textarea>
+          <button class="btn btn-primary" id="subjectChatSend" style="padding:12px 20px">发送</button>
+        </div>
+        <div class="chat-meta" id="subjectChatMeta"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="modal-mask" id="modalMask">
   <div class="modal">
@@ -2212,6 +2282,7 @@ textarea.f-input{resize:vertical;min-height:76px}
       html+='<div class="sem-card" data-act="sub-open" data-sub="'+esc(r['标题'])+'">';
       html+='<div class="sem-emoji">📘</div><div class="sem-name">'+esc(r['标题'])+'</div>';
       html+='<div class="sem-count">'+n+' 项内容</div>';
+      html+='<button class="btn btn-sm btn-ghost" data-act="sub-ai" data-sub="'+esc(r['标题'])+'" title="向该学科提问（带笔记/课件上下文）" style="flex-shrink:0;padding:6px 12px">🤖 问 AI</button>';
       html+='<svg class="sem-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
       html+='</div>';
     });
@@ -2962,10 +3033,12 @@ textarea.f-input{resize:vertical;min-height:76px}
     var raw=CONFIRM_RAW||($('qInput')?$('qInput').value:'').trim();
     if(!raw){ toast('先输入要做的事'); return; }
     var btn=$('aiDeepBtn');
+    // M3 fix 2: low-confidence (mechanical parse guessed) -> use pro model.
+    var lowConf = !PARSED || !PARSED.类型 || PARSED.类型==='任务';
     if(btn){ btn.disabled=true; btn.textContent='AI 思考中…'; }
-    var done=function(){ if(btn){ btn.disabled=false; btn.textContent='🤖 AI 深度解析'; } };
+    var done=function(){ if(btn){ btn.disabled=false; btn.textContent=lowConf?'🤖 AI 深度解析（pro）':'🤖 AI 深度解析'; } };
     if(!hasWP || !window.workplace.aiParse){ done(); toast('仅桌面版支持 AI 解析'); return; }
-    window.workplace.aiParse(raw)
+    window.workplace.aiParse(raw, lowConf)
       .then(function(j){
         done();
         if(j&&j.ok&&j.parsed){
@@ -2973,7 +3046,7 @@ textarea.f-input{resize:vertical;min-height:76px}
           PARSED.详情=PARSED.详情||raw;
           autoPriority(PARSED);
           showConfirmCard();
-          toast('AI 解析完成，检查无误后确认');
+          toast(lowConf?'AI 深度解析完成（pro 模型），检查无误后确认':'AI 解析完成，检查无误后确认');
         }else{
           toast('AI 解析失败：'+(j&&j.error||'未知错误'));
         }
@@ -3345,6 +3418,7 @@ textarea.f-input{resize:vertical;min-height:76px}
       }
       if(act==='add-type'){ openModal(t.getAttribute('data-type')); return; }
       if(act==='sem-open'){ learnLevel.sem=t.getAttribute('data-sem'); learnLevel.sub=null; renderLearn(); return; }
+      if(act==='sub-ai'){ openSubjectAi(t.getAttribute('data-sub')); return; }
       if(act==='sub-open'){ learnLevel.sub=t.getAttribute('data-sub'); renderLearn(); return; }
       if(act==='sem-add'){ openEntityModal('sem'); return; }
       if(act==='sub-add'){ openEntityModal('sub'); return; }
@@ -3708,7 +3782,9 @@ textarea.f-input{resize:vertical;min-height:76px}
   }
 
   // ---- draft confirm card (inline in chat log) ----
-  function showDraftCard(draft){
+  var detectIgnored = {};    // intent -> timestamp (recently ignored, M3 dedup)
+  var detectConfirmed = {};  // intent -> true (confirmed this session, M3 dedup)
+  function showDraftCard(draft, intent){
     if(!draft) return;
     var log = $('chatLog');
     if(!log) return;
@@ -3722,6 +3798,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     var ok = el.querySelector('.draft-ok'), no = el.querySelector('.draft-no');
     ok.addEventListener('click', function(){
       ok.disabled = true; ok.textContent = '写入中…';
+      if(intent) detectConfirmed[intent] = true;
       window.workplace.aiConfirmDraft(draft).then(function(r){
         if(r && r.ok){
           el.innerHTML = '<div class="draft-txt">已写入「<b>' + esc(draft.type) + '</b>」：' + esc(draft.props['标题'] || '') + '</div>';
@@ -3734,18 +3811,25 @@ textarea.f-input{resize:vertical;min-height:76px}
       }).catch(function(){ ok.disabled = false; ok.textContent = '确认写入'; toast('写入失败'); });
     });
     no.addEventListener('click', function(){
+      if(intent) detectIgnored[intent] = Date.now();
       el.innerHTML = '<div class="draft-txt" style="color:var(--g4)">已忽略</div>';
     });
   }
-  function showNoticeCard(text){
+  function showNoticeCard(text, intent){
     var log = $('chatLog');
     if(!log) return;
     var el = document.createElement('div');
     el.className = 'draft-inline';
     el.style.borderColor = 'var(--g3)';
-    el.innerHTML = '<div class="draft-txt">💡 ' + esc(text || '') + '</div>';
+    el.innerHTML = '<div class="draft-txt">💡 ' + esc(text || '') + '</div>' +
+      '<button class="btn btn-sm btn-ghost notice-ok">知道了</button>';
     log.appendChild(el);
     log.scrollTop = log.scrollHeight;
+    var ok = el.querySelector('.notice-ok');
+    ok.addEventListener('click', function(){
+      if(intent) detectIgnored[intent] = Date.now();
+      el.innerHTML = '<div class="draft-txt" style="color:var(--g4)">💡 ' + esc(text || '') + '</div>';
+    });
   }
 
   function chatSend(){
@@ -3803,8 +3887,13 @@ textarea.f-input{resize:vertical;min-height:76px}
     window.workplace.aiDetect(chatHistory.slice()).then(function(j){
       detectBusy = false;
       if(j && j.ok && j.hit){
-        if(j.draft) showDraftCard(j.draft);
-        else if(j.notice) showNoticeCard(j.notice);
+        var intent = j.intent || (j.draft ? j.draft.type : '');
+        var now = Date.now();
+        // M3 fix 4: dedup — same intent confirmed this session, or ignored within
+        // the last minute, is not re-prompted.
+        if(intent && (detectConfirmed[intent] || (detectIgnored[intent] && now - detectIgnored[intent] < 60000))) return;
+        if(j.draft) showDraftCard(j.draft, intent);
+        else if(j.notice) showNoticeCard(j.notice, intent);
       }
     }).catch(function(){ detectBusy = false; });
   }
@@ -3817,6 +3906,246 @@ textarea.f-input{resize:vertical;min-height:76px}
     agentStepReset();
     showAgentSteps(false);
     setChatMetaText('');
+  }
+
+  // ---- 学科 AI（M3）----
+  var subjectAiCurrent = null;   // current conversation id
+  var subjectAiConv = null;      // current conversation object
+  var subjectAiBusy = false;
+
+  function subjectAiAvail(){ return hasWP && window.workplace.convList; }
+
+  function renderSubjectModelSel(){
+    var sel = $('subjectModelSel');
+    if(!sel) return;
+    var opts = [];
+    AI_PROVIDERS.forEach(function(p){
+      if(!p.configured) return;
+      (p.models || []).forEach(function(m){
+        opts.push({ label: p.name + ' · ' + m.name, value: p.id + '|' + m.name });
+      });
+    });
+    if(!opts.length){ sel.innerHTML = '<option value="">未配置模型</option>'; return; }
+    sel.innerHTML = opts.map(function(o){ return '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>'; }).join('');
+  }
+
+  function openSubjectAi(subject){
+    if(!subjectAiAvail()){ toast('仅桌面版支持学科 AI'); return; }
+    $('subjectAiMask').className = 'modal-mask show';
+    renderSubjectModelSel();
+    renderSubjectList();
+    if(subject){
+      window.workplace.convList().then(function(list){
+        var found = null;
+        (list || []).forEach(function(c){ if(c.subject === subject) found = c; });
+        if(found){ selectSubject(found.id); }
+        else {
+          window.workplace.convCreate(subject, subject).then(function(c){ renderSubjectList(); selectSubject(c.id); });
+        }
+      });
+    }
+  }
+
+  function renderSubjectList(){
+    if(!subjectAiAvail()) return;
+    window.workplace.convList().then(function(list){
+      var box = $('subjectAiList');
+      if(!box) return;
+      var html = '<button class="btn btn-dash" id="subjectAiNew"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新建学科会话</button>';
+      if(!(list || []).length) html += '<div class="list-empty" style="font-size:12px">还没有会话</div>';
+      (list || []).forEach(function(c){
+        var active = subjectAiCurrent === c.id ? ' active' : '';
+        html += '<div class="subject-ai-item' + active + '" data-id="' + esc(c.id) + '">';
+        html += '<span class="si-name" title="' + esc(c.title) + '">' + esc(c.title) + '</span>';
+        html += '<span class="si-count">' + (c.msg_count || 0) + '</span>';
+        html += '<span class="si-ops"><button data-op="rename" title="重命名">✎</button><button data-op="clear" title="清空对话">⌫</button></span>';
+        html += '</div>';
+      });
+      box.innerHTML = html;
+    });
+  }
+
+  function appendSubjectMsg(role, text){
+    var log = $('subjectChatLog');
+    if(!log) return null;
+    var empty = log.querySelector('.chat-empty');
+    if(empty) empty.remove();
+    var el = document.createElement('div');
+    el.className = 'chat-msg ' + role;
+    el.textContent = text;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return el;
+  }
+  function setSubjectMetaText(t){ var el = $('subjectChatMeta'); if(el) el.textContent = t || ''; }
+  function setSubjectMeta(usage){
+    var el = $('subjectChatMeta');
+    if(!el) return;
+    if(usage && usage.total > 0){
+      el.innerHTML = '本次用量：input <b>' + usage.input + '</b> · output <b>' + usage.output + '</b> tokens · 费用 <b>¥' + fmtRmb(usage.rmb) + '</b>';
+    } else el.innerHTML = '';
+  }
+
+  function selectSubject(id){
+    subjectAiCurrent = id;
+    renderSubjectList();
+    window.workplace.convOpen(id).then(function(r){
+      if(!r || !r.ok){ toast('会话加载失败：' + ((r && r.error) || '未知')); return; }
+      subjectAiConv = r.conv;
+      $('subjectAiTitle').textContent = '学科 AI · ' + (r.conv.title || r.conv.subject);
+      var log = $('subjectChatLog');
+      if(!(r.messages || []).length){
+        log.innerHTML = '<div class="chat-empty">开始和「' + esc(r.conv.subject) + '」对话，只带本学科上下文</div>';
+      } else {
+        log.innerHTML = '';
+        r.messages.forEach(function(m){
+          if(m.role === 'summary') appendSubjectMsg('ai', '📋 历史摘要：' + m.content);
+          else appendSubjectMsg(m.role === 'user' ? 'user' : 'ai', m.content);
+        });
+      }
+      setSubjectMeta('');
+      log.scrollTop = log.scrollHeight;
+    });
+  }
+
+  function subjectSend(){
+    if(!subjectAiAvail()){ toast('仅桌面版支持'); return; }
+    if(!subjectAiCurrent){ toast('请先选择左侧学科会话'); return; }
+    if(subjectAiBusy) return;
+    var sel = $('subjectModelSel');
+    var val = sel ? sel.value : '';
+    if(!val){ toast('请先在 设置 → AI 模型 配置 API Key'); return; }
+    var parts = val.split('|');
+    var provider = parts[0], model = parts[1];
+    var input = $('subjectChatInput');
+    var text = (input ? input.value : '').trim();
+    if(!text) return;
+    input.value = '';
+    appendSubjectMsg('user', text);
+    var aiEl = appendSubjectMsg('ai', '');
+    setSubjectMetaText('思考中…');
+    var btn = $('subjectChatSend');
+    btn.disabled = true; btn.textContent = '回复中…';
+    subjectAiBusy = true;
+    var thinkVals = ['off','shallow','normal','deep'];
+    var thinking = thinkVals[+($('subjectThinkSlider') ? $('subjectThinkSlider').value : 2)] || 'normal';
+
+    window.workplace.convSend(subjectAiCurrent, provider, model, text, thinking, function(ev){
+      if(ev && ev.delta && aiEl){ aiEl.textContent += ev.delta; var l=$('subjectChatLog'); if(l) l.scrollTop = l.scrollHeight; }
+    }).then(function(r){
+      btn.disabled = false; btn.textContent = '发送';
+      subjectAiBusy = false;
+      if(r && r.ok){
+        if(aiEl && !aiEl.textContent) aiEl.textContent = r.content || '（无内容）';
+        setSubjectMeta(r.usage);
+        renderSubjectList();
+      } else {
+        if(aiEl) aiEl.textContent = '出错了：' + ((r && r.error) || '未知');
+        setSubjectMetaText('请求失败');
+      }
+    }).catch(function(err){
+      btn.disabled = false; btn.textContent = '发送';
+      subjectAiBusy = false;
+      if(aiEl) aiEl.textContent = '出错了：' + String((err && err.message) || err);
+      setSubjectMetaText('请求失败');
+    });
+  }
+
+  var subjectAiRenameMode = null;  // {mode:'new'} or {mode:'rename', id, title}
+  var subjectClearArm = null;
+  function subjectShowRename(mode, id, title){
+    subjectAiRenameMode = mode === 'new' ? { mode: 'new' } : { mode: 'rename', id: id, title: title };
+    var row = $('subjectAiRenameRow');
+    var inp = $('subjectAiNameInput');
+    if(!row || !inp) return;
+    row.style.display = 'flex';
+    inp.value = (mode === 'rename') ? title : '';
+    inp.focus();
+  }
+  function subjectHideRename(){ subjectAiRenameMode = null; var row = $('subjectAiRenameRow'); if(row) row.style.display = 'none'; }
+  function subjectRenameConfirm(){
+    var name = ($('subjectAiNameInput') ? $('subjectAiNameInput').value : '').trim();
+    if(!name){ toast('请输入名称'); return; }
+    var m = subjectAiRenameMode;
+    subjectHideRename();
+    if(m && m.mode === 'rename'){
+      window.workplace.convRename(m.id, name).then(function(){ renderSubjectList(); if(subjectAiCurrent === m.id){ $('subjectAiTitle').textContent = '学科 AI · ' + name; } });
+    } else {
+      window.workplace.convCreate(name, name).then(function(c){ renderSubjectList(); selectSubject(c.id); });
+    }
+  }
+  function subjectNew(){ subjectShowRename('new'); }
+  function subjectRename(id){
+    var cur = null;
+    window.workplace.convList().then(function(list){ (list||[]).forEach(function(c){ if(c.id===id) cur=c; }); }).then(function(){
+      subjectShowRename('rename', id, cur ? cur.title : '');
+    });
+  }
+  function subjectClear(id){
+    if(subjectClearArm !== id){ subjectClearArm = id; toast('再次点击「清空」确认（不可恢复）'); return; }
+    subjectClearArm = null;
+    window.workplace.convClear(id).then(function(){ renderSubjectList(); if(subjectAiCurrent===id){ var log=$('subjectChatLog'); if(log) log.innerHTML='<div class="chat-empty">已清空，重新开始对话</div>'; setSubjectMetaText(''); } });
+  }
+
+  function subjectSearch(){
+    var q = ($('subjectAiSearch') ? $('subjectAiSearch').value : '').trim();
+    if(!q){ toast('请输入搜索关键词'); return; }
+    window.workplace.convSearch(q).then(function(r){
+      var box = $('subjectAiSearchResults');
+      if(!box) return;
+      box.style.display = '';
+      var hits = (r && r.hits) || [];
+      if(!hits.length){ box.innerHTML = '<div class="list-empty" style="font-size:12px">没有命中「' + esc(q) + '」</div>'; return; }
+      var html = '';
+      hits.forEach(function(h){
+        var d = new Date(h.ts);
+        var p = function(n){ return n < 10 ? '0' + n : '' + n; };
+        var tm = (d.getMonth()+1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+        html += '<div class="search-hit" data-conv="' + esc(h.conv_id) + '">';
+        html += '<span class="sh-subj">' + esc(h.subject || h.title || '') + '</span>';
+        html += '<span class="sh-txt">' + esc(h.content) + '</span>';
+        html += '<span class="sh-time">' + tm + '</span></div>';
+      });
+      box.innerHTML = html;
+    });
+  }
+
+  // 学科 AI 事件绑定
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if(!t || t.nodeType !== 1) return;
+    var bid = function(id){ var el = t.closest ? t.closest('#' + id) : null; return !!el; };
+    if(bid('subjectAiClose')){ $('subjectAiMask').className = 'modal-mask'; return; }
+    if(t === e.target && t.id === 'subjectAiMask'){ $('subjectAiMask').className = 'modal-mask'; return; }
+    if(bid('subjectAiNew')){ subjectNew(); return; }
+    if(bid('subjectAiNameOk')){ subjectRenameConfirm(); return; }
+    if(bid('subjectAiNameCancel')){ subjectHideRename(); return; }
+    if(bid('subjectAiSearchBtn')){ subjectSearch(); return; }
+    if(bid('subjectChatSend')){ subjectSend(); return; }
+    if(bid('subjectChatClear')){ if(subjectAiCurrent) subjectClear(subjectAiCurrent); return; }
+    var hit = t.closest ? t.closest('.search-hit') : null;
+    if(hit){ selectSubject(hit.getAttribute('data-conv')); var r=$('subjectAiSearchResults'); if(r){ r.style.display='none'; r.innerHTML=''; } var si=$('subjectAiSearch'); if(si) si.value=''; return; }
+    var item = t.closest ? t.closest('.subject-ai-item') : null;
+    if(item){
+      var id = item.getAttribute('data-id');
+      var op = t.getAttribute ? t.getAttribute('data-op') : null;
+      if(op === 'rename'){ subjectRename(id); return; }
+      if(op === 'clear'){ subjectClear(id); return; }
+      selectSubject(id);
+      return;
+    }
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.target && e.target.id === 'subjectChatInput' && e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); subjectSend(); }
+    if(e.target && e.target.id === 'subjectAiSearch' && e.key === 'Enter'){ e.preventDefault(); subjectSearch(); }
+    if(e.target && e.target.id === 'subjectAiNameInput' && e.key === 'Enter'){ e.preventDefault(); subjectRenameConfirm(); }
+  });
+  if($('subjectThinkSlider')){
+    $('subjectThinkSlider').addEventListener('input', function(){
+      var v = +this.value;
+      var el = $('subjectThinkVal');
+      if(el) el.textContent = ['关闭','浅','标准','深'][v] || '标准';
+    });
   }
 
   // AI button delegation (providers are rendered dynamically).

@@ -10,6 +10,7 @@ const data = require('./data.js');
 const ai = require('./ai.js');
 const tools = require('./tools.js');
 const parse = require('./parse.js');
+const conv = require('./conv.js');
 
 const APP_NAME = "Jovan's Workplace";
 const DEFAULT_DATA_DIR = path.join('D:', "Jovan's Workplace", 'data');
@@ -187,9 +188,9 @@ function registerIpc() {
     }
   });
 
-  // ---- Step 3: one-shot natural-language parse (flash + JSON output) ----
-  ipcMain.handle('ai:parse', async (e, text) => {
-    try { return await parse.parse(text); }
+  // ---- Step 3: one-shot natural-language parse (flash + JSON output; pro on low-confidence) ----
+  ipcMain.handle('ai:parse', async (e, text, pro) => {
+    try { return await parse.parse(text, !!pro); }
     catch (err) { return { ok: false, error: String(err.message || err), parsed: null, confidence: 0 }; }
   });
 
@@ -211,6 +212,25 @@ function registerIpc() {
       const row = data.add(draft.props);
       if ((row['类型'] || '') !== '日志') data.logOp('添加', row['类型'] || '', row['标题'] || '');
       return { ok: true, row: row, rows: data.rows() };
+    } catch (err) {
+      return { ok: false, error: String(err.message || err) };
+    }
+  });
+
+  // ---- Subject-AI conversations (M3: conv.js + SQLite) ----
+  ipcMain.handle('conv:list', () => conv.listConversations());
+  ipcMain.handle('conv:create', (e, subject, title) => conv.createConversation(subject, title));
+  ipcMain.handle('conv:open', (e, id) => conv.loadConversation(id));
+  ipcMain.handle('conv:rename', (e, id, title) => conv.renameConversation(id, title));
+  ipcMain.handle('conv:clear', (e, id) => conv.clearConversation(id));
+  ipcMain.handle('conv:search', (e, q) => conv.search(q));
+  ipcMain.handle('conv:send', async (e, id, provider, model, text, thinking) => {
+    const sender = e.sender;
+    try {
+      const r = await conv.sendMessage(id, provider, model, text, thinking, function (delta) {
+        if (sender && !sender.isDestroyed()) sender.send('conv:chunk', { delta: delta });
+      });
+      return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
     } catch (err) {
       return { ok: false, error: String(err.message || err) };
     }
@@ -257,6 +277,7 @@ if (!gotLock) {
   app.whenReady().then(() => {
     const dataDir = chooseDataDir();
     data.setDataDir(dataDir);
+    conv.init();
     registerIpc();
     createWindow();
     createTray();

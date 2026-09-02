@@ -36,10 +36,24 @@ contextBridge.exposeInMainWorld('workplace', {
       ipcRenderer.removeListener('ai:agent-event', listener);
     });
   },
-  aiParse: (text) => ipcRenderer.invoke('ai:parse', text),
+  aiParse: (text, pro) => ipcRenderer.invoke('ai:parse', text, pro),
   aiDetect: (messages) => ipcRenderer.invoke('ai:detect', messages),
   aiDictLoad: () => ipcRenderer.invoke('ai:dict-load'),
   aiDictSave: (dict) => ipcRenderer.invoke('ai:dict-save', dict),
   aiDictClear: () => ipcRenderer.invoke('ai:dict-clear'),
-  aiConfirmDraft: (draft) => ipcRenderer.invoke('ai:confirm-draft', draft)
+  aiConfirmDraft: (draft) => ipcRenderer.invoke('ai:confirm-draft', draft),
+  // Subject-AI conversations (M3)
+  convList: () => ipcRenderer.invoke('conv:list'),
+  convCreate: (subject, title) => ipcRenderer.invoke('conv:create', subject, title),
+  convOpen: (id) => ipcRenderer.invoke('conv:open', id),
+  convRename: (id, title) => ipcRenderer.invoke('conv:rename', id, title),
+  convClear: (id) => ipcRenderer.invoke('conv:clear', id),
+  convSearch: (q) => ipcRenderer.invoke('conv:search', q),
+  convSend: (id, provider, model, text, thinking, onChunk) => {
+    const listener = (e, data) => { if (typeof onChunk === 'function') onChunk(data); };
+    ipcRenderer.on('conv:chunk', listener);
+    return ipcRenderer.invoke('conv:send', id, provider, model, text, thinking).finally(function () {
+      ipcRenderer.removeListener('conv:chunk', listener);
+    });
+  }
 });
