@@ -143,6 +143,10 @@ body.nav-bottom #bottomTabs{display:none}
 .chat-msg pre code{background:none;padding:0}
 .chat-msg a{color:var(--orange-d)}
 .chat-msg blockquote{border-left:3px solid var(--g2);margin:6px 0;padding:2px 10px;color:var(--g4)}
+.ai-actions{display:flex;gap:2px;margin-top:6px;opacity:0;transition:opacity .15s}
+.chat-msg:hover .ai-actions,.ai-actions:focus-within{opacity:1}
+.ai-act{font-size:11px;color:var(--g4);background:none;border:1px solid transparent;border-radius:6px;padding:1px 8px;cursor:pointer;font-family:inherit;line-height:1.6}
+.ai-act:hover{color:var(--orange-d);border-color:var(--g2);background:var(--g1)}
 .chat-msg.user{align-self:flex-end;background:var(--orange);color:#fff;border-bottom-right-radius:4px}
 .chat-msg.ai{align-self:flex-start;background:var(--g1);color:var(--ink);border-bottom-left-radius:4px}
 .chat-empty{color:var(--g4);font-size:13px;text-align:center;margin:auto}
@@ -3871,6 +3875,63 @@ textarea.f-input{resize:vertical;min-height:76px}
     var c = text || '';
     el.innerHTML = renderMarkdown(c);
   }
+  // ---- AI message actions: copy / read aloud / regenerate ----
+  var aiActionsShown = false;
+  function attachAiActions(el, rawText, onRegen){
+    if(!el || !rawText) return;
+    el.classList.add('has-actions');
+    var bar = document.createElement('div');
+    bar.className = 'ai-actions';
+    bar.innerHTML =
+      '<button class="ai-act" title="复制">复制</button>' +
+      '<button class="ai-act" title="朗读">朗读</button>' +
+      '<button class="ai-act" title="重新生成">重生成</button>';
+    el.appendChild(bar);
+    var btns = bar.querySelectorAll('.ai-act');
+    btns[0].addEventListener('click', function(ev){
+      ev.stopPropagation();
+      try { navigator.clipboard.writeText(rawText); toast('已复制'); } catch(e){ toast('复制失败'); }
+    });
+    var speaking = false, utter = null;
+    btns[1].addEventListener('click', function(ev){
+      ev.stopPropagation();
+      if(speaking){ try{ speechSynthesis.cancel(); }catch(e){} speaking = false; btns[1].textContent = '朗读'; return; }
+      if(!('speechSynthesis' in window)){ toast('当前环境不支持朗读'); return; }
+      try {
+        utter = new SpeechSynthesisUtterance(String(rawText).replace(/[#*`\[\]>\-]/g, ' ').slice(0, 4000));
+        utter.lang = 'zh-CN';
+        speaking = true; btns[1].textContent = '停止';
+        utter.onend = function(){ speaking = false; btns[1].textContent = '朗读'; };
+        utter.onerror = function(){ speaking = false; btns[1].textContent = '朗读'; };
+        speechSynthesis.cancel();
+        speechSynthesis.speak(utter);
+      } catch(e){ speaking = false; btns[1].textContent = '朗读'; toast('朗读失败：' + e.message); }
+    });
+    btns[2].addEventListener('click', function(ev){
+      ev.stopPropagation();
+      if(onRegen) onRegen();
+    });
+  }
+  // ---- typewriter effect (simulated streaming for Agent replies) ----
+  var typeTimer = null;
+  function stopType(){ if(typeTimer){ clearInterval(typeTimer); typeTimer = null; } }
+  function typeInto(el, fullText){
+    stopType();
+    var t = String(fullText || '');
+    if(!el) return;
+    if(t.length < 40){ setAiHtml(el, t); return; }
+    var i = 0;
+    el.textContent = '';
+    typeTimer = setInterval(function(){
+      i += 3;
+      if(i >= t.length){
+        stopType();
+        setAiHtml(el, t);
+      } else {
+        el.textContent = t.slice(0, i);
+      }
+    }, 12);
+  }
   function appendChatMsg(role, text){
     var log = $('chatLog');
     if(!log) return null;
@@ -3988,25 +4049,46 @@ textarea.f-input{resize:vertical;min-height:76px}
     });
   }
 
-  function chatSend(){
+  var lastUserText = '', lastAiEl = null, chatSending = false;
+  function chatSend(){ sendText(''); }
+  function regenChat(){
+    if(!lastUserText){ toast('没有可重新生成的消息'); return; }
+    if(chatSending){ toast('正在回复中'); return; }
+    // drop trailing assistant turn so the model re-answers the same user msg
+    while(chatHistory.length && chatHistory[chatHistory.length - 1].role === 'assistant') chatHistory.pop();
+    if(lastAiEl && lastAiEl.parentNode) lastAiEl.remove();
+    lastAiEl = null;
+    sendText(lastUserText, true);
+  }
+  function sendText(text, isRegen){
+    if(chatSending) return;
     if(!aiAvailable()){ toast('仅桌面版支持（需 Electron 内置 AI 网关）'); return; }
     var sel = $('chatModelSel');
     var val = sel.value;
     if(!val){ toast('请先在 设置 → AI 模型 配置 API Key'); return; }
     var parts = val.split('|');
     var provider = parts[0], model = parts[1];
-    var input = $('chatInput');
-    var text = (input.value || '').trim();
-    if(!text) return;
-    input.value = '';
-    chatHistory.push({ role: 'user', content: text });
-    appendChatMsg('user', text);
+    if(!isRegen){
+      var input = $('chatInput');
+      text = String(text || (input ? input.value : '') || '').trim();
+      if(!text) return;
+      if(input) input.value = '';
+      chatHistory.push({ role: 'user', content: text });
+      appendChatMsg('user', text);
+    } else {
+      text = String(text || '').trim();
+      if(!text) return;
+    }
+    lastUserText = text;
+    stopType();
     chatAiEl = appendChatMsg('ai', '');
+    lastAiEl = chatAiEl;
     setChatMetaText('思考中…');
     var btn = $('chatSend');
     btn.disabled = true; btn.textContent = '回复中…';
     agentStepReset();
     agentToolTrace = [];
+    chatSending = true;
 
     var thinking = thinkKey();
     window.workplace.aiAgent(provider, model, chatHistory.slice(), thinking, function(ev){
@@ -4014,17 +4096,17 @@ textarea.f-input{resize:vertical;min-height:76px}
       if(ev.type === 'tool-start'){ agentToolTrace.push({ name: ev.name, args: ev.args }); agentStep(ev.name, 'doing', ev.args && ev.args['标题'] ? '：' + ev.args['标题'] : ''); }
       else if(ev.type === 'tool-done'){ agentStep(ev.name, 'ok', ''); }
       else if(ev.type === 'draft'){ showDraftCard(ev.draft); }
-      else if(ev.type === 'done'){ if(chatAiEl) chatAiEl.innerHTML = renderMarkdown(ev.content || ''); setChatMeta(ev.usage, ev.usage); chatLogScroll(); }
+      else if(ev.type === 'done'){ if(chatAiEl) typeInto(chatAiEl, ev.content || ''); setChatMeta(ev.usage, ev.usage); chatLogScroll(); }
     }).then(function(r){
       btn.disabled = false; btn.textContent = '发送';
+      chatSending = false;
       if(r && r.ok){
         chatHistory.push({ role: 'assistant', content: r.content });
-        if(chatAiEl && !chatAiEl.textContent) chatAiEl.innerHTML = renderMarkdown(r.content || '（无内容）');
+        if(chatAiEl && !chatAiEl.textContent) typeInto(chatAiEl, r.content || '（无内容）');
+        if(chatAiEl && r.content) attachAiActions(chatAiEl, r.content, regenChat);
         setChatMeta(r.usage, r.usage);
         chatLogScroll();
-        // Step 4: proactive intent detection after the turn.
         runDetect();
-        // M4: L3 fact distillation + G2 skill distillation after the turn.
         runMemExtract();
         maybeDistillSkill(r.rounds);
       } else {
@@ -4033,6 +4115,7 @@ textarea.f-input{resize:vertical;min-height:76px}
       }
     }).catch(function(err){
       btn.disabled = false; btn.textContent = '发送';
+      chatSending = false;
       if(chatAiEl) chatAiEl.textContent = '出错了：' + String((err && err.message) || err);
       setChatMetaText('请求失败');
     });
@@ -4059,6 +4142,8 @@ textarea.f-input{resize:vertical;min-height:76px}
   }
 
   function chatClear(){
+    stopType();
+    lastAiEl = null; lastUserText = '';
     chatHistory = [];
     chatAiEl = null;
     var log = $('chatLog');
