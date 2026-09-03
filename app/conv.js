@@ -108,6 +108,19 @@ function touchConversation(id) {
   db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now(), id);
 }
 
+function deleteConversation(id) {
+  init();
+  const conv = getConversation(id);
+  if (!conv) return { ok: false, error: '会话不存在' };
+  // delete messages + their FTS rows (messages_fts has no FK cascade)
+  db.prepare('DELETE FROM messages_fts WHERE rowid IN (SELECT id FROM messages WHERE conv_id = ?)').run(id);
+  db.prepare('DELETE FROM messages WHERE conv_id = ?').run(id);
+  // detach facts that cite this conversation as evidence — keep the fact, drop the backlink
+  db.prepare('UPDATE facts SET source_conv = NULL WHERE source_conv = ?').run(id);
+  db.prepare('DELETE FROM conversations WHERE id = ?').run(id);
+  return { ok: true };
+}
+
 // ---- messages ----
 function appendMessage(id, role, content) {
   init();
@@ -354,6 +367,7 @@ module.exports = {
   appendMessage,
   renameConversation,
   clearConversation,
+  deleteConversation,
   sendMessage,
   search,
   compressIfNeeded,

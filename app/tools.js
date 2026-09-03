@@ -246,7 +246,10 @@ const TOOL_DEFS = [
     { 姓名: { type: 'string' }, 关系: { type: 'string', description: '如 母亲/室友/导师' }, 忌口: { type: 'string' }, 雷点: { type: 'string' }, 喜好: { type: 'string' }, 生日: { type: 'string' } },
     ['姓名']),
   fn('create_study', '新建学习记录草稿（需用户确认）。当用户表达"这周开始刷题/新增科目/备考雅思"等学习意图时调用。',
-    { 标题: { type: 'string' }, 学期: { type: 'string' }, 科目: { type: 'string' }, 备考: { type: 'string', description: '备考目标，如 雅思/考研，填写则归为备考' } })
+    { 标题: { type: 'string' }, 学期: { type: 'string' }, 科目: { type: 'string' }, 备考: { type: 'string', description: '备考目标，如 雅思/考研，填写则归为备考' } }),
+  fn('ask_user', '当任务目标模糊、缺少关键信息、或存在多种合理解读时，向用户提问澄清，不要瞎猜。简单可查数据的问题不得提问。一次最多问 1-2 个问题。',
+    { question: { type: 'string', description: '要问用户的问题（1-2 个，简洁明确）' }, options: { type: 'array', items: { type: 'string' }, description: '候选答案（可选，2-4 个）' } },
+    ['question'])
 ];
 
 // ---- dispatch ----

@@ -385,6 +385,65 @@ async function jsonOutput(params) {
   return { ok: false, error: 'JSON 输出校验失败', raw: raw, usage: usage };
 }
 
+// ---- ask_user bridge (Step 2 / 1.2 B1) ----
+// runAgentLoop pauses when the model calls ask_user; the renderer shows a question
+// card and the user's answer arrives via answerAsk() (wired to ai:answer IPC).
+// A single pending resolver is enough because ask_user calls are handled serially.
+const ASK_MAX = 3;
+let _askResolve = null;
+function waitAsk() {
+  return new Promise(function (resolve) { _askResolve = resolve; });
+}
+function answerAsk(content) {
+  if (_askResolve) {
+    const r = _askResolve;
+    _askResolve = null;
+    r(String(content == null ? '' : content));
+    return true;
+  }
+  return false;
+}
+
+// ---- plan-then-act bridge (1.2 B2) ----
+// Complex delegations first propose a plan; the renderer shows a plan card and the
+// user's decision (execute / edit / cancel) arrives via answerPlan().
+let _planResolve = null;
+function waitPlan() {
+  return new Promise(function (resolve) { _planResolve = resolve; });
+}
+function answerPlan(action, plan) {
+  if (_planResolve) {
+    const r = _planResolve;
+    _planResolve = null;
+    r({ action: String(action || 'execute'), plan: plan });
+    return true;
+  }
+  return false;
+}
+
+// ---- provider fallback (1.2 C2) ----
+// On 401/429/5xx/network errors we switch to the next model of the same vendor,
+// then to the next configured vendor, and retry once before surfacing the error.
+function fallbackModel(provider, model) {
+  const providers = listProviders();
+  const p = providers.find(function (x) { return x.id === provider; });
+  if (p && p.configured && p.models) {
+    const idx = p.models.findIndex(function (m) { return m.name === model; });
+    for (let i = idx + 1; i < p.models.length; i++) {
+      if (p.models[i] && p.models[i].name !== model) return { provider: provider, model: p.models[i].name };
+    }
+    if (idx !== 0 && p.models[0] && p.models[0].name !== model) return { provider: provider, model: p.models[0].name };
+  }
+  for (let i = 0; i < providers.length; i++) {
+    const q = providers[i];
+    if (q.id === provider) continue;
+    if (q.configured && q.models && q.models.length) {
+      return { provider: q.id, model: q.defaultModel || q.models[0].name };
+    }
+  }
+  return null;
+}
+
 // ---- tool loop engine (Step 1) ----
 // Runs the model until it stops calling tools, up to MAX_TOOL_ROUNDS.
 //   messages   : working message array (will be extended with tool results)
@@ -402,10 +461,28 @@ async function runAgentLoop(params) {
 
   const MAX_ROUNDS = maxToolRounds();
   let totalUsage = { input: 0, output: 0, total: 0, rmb: 0 };
+  let askCount = 0;
+  let curProvider = provider;
+  let curModel = model;
+  let fallbackUsed = false;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     onEvent({ type: 'round', round: round + 1, max: MAX_ROUNDS });
-    const resp = await chatOnce({ provider: provider, model: model, messages: messages, tools: tools, thinking: thinking });
+    let resp;
+    try {
+      resp = await chatOnce({ provider: curProvider, model: curModel, messages: messages, tools: tools, thinking: thinking });
+    } catch (e) {
+      const fb = fallbackModel(curProvider, curModel);
+      if (fb && (fb.provider !== curProvider || fb.model !== curModel)) {
+        onEvent({ type: 'fallback', from: curProvider + '/' + curModel, to: fb.provider + '/' + fb.model });
+        curProvider = fb.provider;
+        curModel = fb.model;
+        fallbackUsed = true;
+        resp = await chatOnce({ provider: curProvider, model: curModel, messages: messages, tools: tools, thinking: thinking });
+      } else {
+        throw e;
+      }
+    }
     const msg = resp.message;
     const toolCalls = msg.tool_calls || [];
     // KEEP reasoning_content in history: when a request carries `tools`, DeepSeek
@@ -425,12 +502,36 @@ async function runAgentLoop(params) {
     }
 
     if (!toolCalls.length) {
-      onEvent({ type: 'done', content: msg.content || '', usage: totalUsage });
-      return { content: msg.content || '', usage: totalUsage, rounds: round + 1 };
+      onEvent({ type: 'done', content: msg.content || '', usage: totalUsage, model: curModel, provider: curProvider });
+      return { content: msg.content || '', usage: totalUsage, rounds: round + 1, model: curModel, provider: curProvider, fallbackUsed: fallbackUsed };
     }
 
     onEvent({ type: 'tools', names: toolCalls.map(function (c) { return c.function.name; }) });
-    const results = await Promise.all(toolCalls.map(async function (tc) {
+
+    // 1.2 B1: ask_user pauses the loop for a human answer (serial, ≤ ASK_MAX/task).
+    const askCalls = toolCalls.filter(function (c) { return c.function.name === 'ask_user'; });
+    const otherCalls = toolCalls.filter(function (c) { return c.function.name !== 'ask_user'; });
+    for (let a = 0; a < askCalls.length; a++) {
+      const tc = askCalls[a];
+      let args = {};
+      try { args = JSON.parse(tc.function.arguments || '{}'); } catch (e) { args = {}; }
+      onEvent({ type: 'tool-start', id: tc.id, name: 'ask_user', args: args });
+      let answer = null;
+      if (askCount >= ASK_MAX) {
+        answer = '（已达提问上限，请按你的合理判断继续，不要再问）';
+      } else {
+        askCount++;
+        onEvent({ type: 'ask', question: String(args.question || ''), options: args.options || [], id: tc.id });
+        answer = await waitAsk();
+        if (answer == null || String(answer).trim() === '') answer = '（用户未补充信息，请按你的合理判断继续）';
+      }
+      const text = JSON.stringify({ answer: answer });
+      onEvent({ type: 'tool-done', id: tc.id, name: 'ask_user', result: text });
+      messages.push({ role: 'tool', tool_call_id: tc.id, content: text });
+    }
+
+    // Ordinary tools (parallel, retry-once).
+    const results = await Promise.all(otherCalls.map(async function (tc) {
       const name = tc.function.name;
       let args = {};
       try { args = JSON.parse(tc.function.arguments || '{}'); } catch (e) { args = {}; }
@@ -456,7 +557,7 @@ async function runAgentLoop(params) {
   }
 
   onEvent({ type: 'limit' });
-  return { content: '', usage: totalUsage, rounds: MAX_ROUNDS, stopped: true };
+  return { content: '', usage: totalUsage, rounds: MAX_ROUNDS, stopped: true, model: curModel, provider: curProvider, fallbackUsed: fallbackUsed };
 }
 
 // ---- connectivity test: send one tiny non-streaming request ----
@@ -503,6 +604,9 @@ module.exports = {
   chatOnce,
   jsonOutput,
   runAgentLoop,
+  answerAsk,
+  answerPlan,
+  waitPlan,
   thinkingParams,
   maxToolRounds,
   SYSTEM_PROMPT

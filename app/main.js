@@ -86,6 +86,17 @@ function imaGetKey() {
   try { return safeStorage.decryptString(Buffer.from(cfg.apiKeyEnc, 'base64')); } catch (e) { return null; }
 }
 
+// ---- 1.2 B2: complex-delegation heuristic (lives in main process) ----
+// Fast mode is the default; only clearly complex asks trigger plan-then-act.
+// Keyword match OR an explicit planning request. Daily Q&A never triggers.
+function shouldPlan(text) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  const kw = ['帮我', '安排', '规划', '整理', '做一份', '比较', '分析', '计划', '批量', '汇总', '生成一份'];
+  for (let i = 0; i < kw.length; i++) if (t.indexOf(kw[i]) >= 0) return true;
+  return false;
+}
+
 // ---- window & tray ----
 function showWin() {
   if (!win) return;
@@ -176,8 +187,38 @@ function registerIpc() {
     for (let i = msgs.length - 1; i >= 0; i--) {
       if (msgs[i] && msgs[i].role === 'user') { lastUser = msgs[i].content || ''; break; }
     }
-    const full = [{ role: 'system', content: ai.SYSTEM_PROMPT + '你可以调用工具查询或新建工作台数据（日程/任务/备忘/亲友/学习）。写操作会生成草稿，需用户确认后才真正写入。' + conv.buildMemoryInjection(null, lastUser) }].concat(msgs);
+    // 1.2 C1: cache-friendly layout — the system message is a FIXED byte-stable
+    // prefix (base + tool guidance + ask/plan rules); dynamic injection
+    // (memory/skills) is a separate leading user message so it never disturbs
+    // the cached prefix across turns.
+    const fixedSystem = ai.SYSTEM_PROMPT +
+      '你可以调用工具查询或新建工作台数据（日程/任务/备忘/亲友/学习）。写操作会生成草稿，需用户确认后才真正写入。' +
+      '当任务目标模糊、缺少关键信息、或存在多种合理解读时，先调用 ask_user 向用户澄清，不要瞎猜；简单可查数据的问题不得提问；每任务最多提问 3 次。';
+    const dynamicInjection = conv.buildMemoryInjection(null, lastUser);
+    const full = [{ role: 'system', content: fixedSystem }];
+    if (dynamicInjection) full.push({ role: 'user', content: dynamicInjection });
+    for (let i = 0; i < msgs.length; i++) full.push(msgs[i]);
     try {
+      // 1.2 B2: plan-then-act for complex delegations (default = fast mode).
+      if (shouldPlan(lastUser)) {
+        const planResp = await ai.jsonOutput({
+          provider: provider, model: model,
+          messages: [
+            { role: 'system', content: '你是计划助手。把用户的任务拆解成一个简短可执行的计划。只输出一个 JSON 对象：{"plan":["步骤1","步骤2",...]}。步骤 3-7 条，每条一句话，简洁。' },
+            { role: 'user', content: lastUser }
+          ]
+        });
+        if (planResp.ok && planResp.data && Array.isArray(planResp.data.plan) && planResp.data.plan.length) {
+          if (sender && !sender.isDestroyed()) sender.send('ai:agent-event', { type: 'plan', plan: planResp.data.plan });
+          const decision = await ai.waitPlan();
+          if (!decision || decision.action === 'cancel') {
+            return { ok: true, content: '', usage: { input: 0, output: 0, total: 0, rmb: 0 }, rounds: 0, planCancelled: true };
+          }
+          const plan = (decision.action === 'edit' && Array.isArray(decision.plan) && decision.plan.length)
+            ? decision.plan : planResp.data.plan;
+          full.push({ role: 'user', content: '用户已确认按以下计划执行，请逐步完成：\n' + plan.map(function (s, i) { return (i + 1) + '. ' + s; }).join('\n') });
+        }
+      }
       const r = await ai.runAgentLoop({
         provider: provider,
         model: model,
@@ -189,11 +230,17 @@ function registerIpc() {
           if (sender && !sender.isDestroyed()) sender.send('ai:agent-event', ev);
         }
       });
-      return { ok: true, content: r.content, usage: r.usage, cost: r.usage, rounds: r.rounds, stopped: !!r.stopped };
+      return { ok: true, content: r.content, usage: r.usage, cost: r.usage, rounds: r.rounds, stopped: !!r.stopped, model: r.model, provider: r.provider, fallbackUsed: !!r.fallbackUsed };
     } catch (err) {
       return { ok: false, error: String(err.message || err) };
     }
   });
+
+  // ---- 1.2 B1: resolve a pending ask_user (renderer answer) ----
+  ipcMain.handle('ai:answer', (e, content) => ({ ok: ai.answerAsk(content) }));
+
+  // ---- 1.2 B2: resolve a pending plan card (execute / edit / cancel) ----
+  ipcMain.handle('ai:plan-answer', (e, action, plan) => ({ ok: ai.answerPlan(action, plan) }));
 
   // ---- Step 3: one-shot natural-language parse (flash + JSON output; pro on low-confidence) ----
   ipcMain.handle('ai:parse', async (e, text, pro) => {
@@ -230,6 +277,7 @@ function registerIpc() {
   ipcMain.handle('conv:open', (e, id) => conv.loadConversation(id));
   ipcMain.handle('conv:rename', (e, id, title) => conv.renameConversation(id, title));
   ipcMain.handle('conv:clear', (e, id) => conv.clearConversation(id));
+  ipcMain.handle('conv:delete', (e, id) => conv.deleteConversation(id));
   ipcMain.handle('conv:search', (e, q) => conv.search(q));
   // 1.1: append a single message (used to persist main-Agent turns)
   ipcMain.handle('conv:append', (e, id, role, content) => {

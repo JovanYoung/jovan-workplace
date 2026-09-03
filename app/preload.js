@@ -36,6 +36,10 @@ contextBridge.exposeInMainWorld('workplace', {
       ipcRenderer.removeListener('ai:agent-event', listener);
     });
   },
+  // 1.2 B1: answer a pending ask_user question card
+  aiAnswer: (content) => ipcRenderer.invoke('ai:answer', content),
+  // 1.2 B2: resolve a pending plan card ('execute' | 'edit' | 'cancel')
+  aiPlanAnswer: (action, plan) => ipcRenderer.invoke('ai:plan-answer', action, plan),
   aiParse: (text, pro) => ipcRenderer.invoke('ai:parse', text, pro),
   aiDetect: (messages) => ipcRenderer.invoke('ai:detect', messages),
   aiDictLoad: () => ipcRenderer.invoke('ai:dict-load'),
@@ -48,6 +52,7 @@ contextBridge.exposeInMainWorld('workplace', {
   convOpen: (id) => ipcRenderer.invoke('conv:open', id),
   convRename: (id, title) => ipcRenderer.invoke('conv:rename', id, title),
   convClear: (id) => ipcRenderer.invoke('conv:clear', id),
+  convDelete: (id) => ipcRenderer.invoke('conv:delete', id),
   convSearch: (q) => ipcRenderer.invoke('conv:search', q),
   // 1.1: persist main-Agent turns into conversations.db
   convAppend: (id, role, content) => ipcRenderer.invoke('conv:append', id, role, content),

@@ -127,6 +127,25 @@ body.nav-bottom #bottomTabs{display:none}
 .ai-status{width:10px;height:10px;border-radius:50%;background:var(--g4);flex-shrink:0}
 .ai-status.ok{background:#34D399}.ai-status.busy{background:#FBBF24}.ai-status.off{background:#F87171}
 
+/* Agent 悬浮 dock（1.2 A1）：中下悬浮层，毛玻璃 + 圆角 + 投影 + 把手 */
+.agent-dock{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:60;width:min(760px,calc(100vw - 48px));background:color-mix(in srgb,var(--surface) 82%,transparent);backdrop-filter:blur(14px) saturate(1.1);-webkit-backdrop-filter:blur(14px) saturate(1.1);border:1px solid var(--g2);border-radius:18px;box-shadow:0 18px 44px rgba(22,59,61,.18),0 2px 8px rgba(22,59,61,.08);display:flex;flex-direction:column;overflow:hidden}
+.agent-dock .dock-handle{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:ns-resize;border-bottom:1px solid var(--g1);user-select:none;background:color-mix(in srgb,var(--surface-soft) 55%,transparent)}
+.agent-dock .dock-handle:active{cursor:ns-resize}
+.dock-grip{width:34px;height:4px;border-radius:2px;background:var(--g2);flex-shrink:0}
+.dock-title{font-size:13px;font-weight:500;color:var(--ink2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock-collapse{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--g4);flex-shrink:0;transition:all .15s;border:1px solid transparent}
+.dock-collapse:hover{background:var(--g1);color:var(--orange-d);border-color:var(--g2)}
+.dock-collapse svg{transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.agent-dock.collapsed .dock-collapse svg{transform:rotate(180deg)}
+.agent-dock .chat-wrap{height:var(--agent-dock-h,52vh);min-height:0;border-radius:0 0 18px 18px}
+.agent-dock.collapsed .chat-wrap{height:auto}
+.agent-dock.collapsed .chat-toolbar,
+.agent-dock.collapsed .chat-log,
+.agent-dock.collapsed #agentSteps,
+.agent-dock.collapsed .think-bar,
+.agent-dock.collapsed .chat-meta{display:none}
+.agent-dock.collapsed .chat-input-row{margin-top:10px}
+
 /* Agent 内置对话框 */
 .chat-wrap{display:flex;flex-direction:column;height:64vh;min-height:380px}
 .chat-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
@@ -168,6 +187,26 @@ body.nav-bottom #bottomTabs{display:none}
 .draft-inline .draft-txt{flex:1;min-width:0}
 .draft-inline .draft-txt b{color:var(--orange-d)}
 .draft-inline .btn{flex-shrink:0}
+
+/* 1.2 B1: ask_user question card (inline) */
+.ask-inline{margin-top:8px;padding:12px;border:1px solid var(--orange);border-radius:12px;background:var(--orange-ll);font-size:13px;color:var(--ink)}
+.ask-inline .ask-q{font-weight:500;color:var(--ink2);margin-bottom:8px}
+.ask-inline .ask-opts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.ask-inline .ask-opt{background:var(--surface);border:1px solid var(--orange);color:var(--orange-d)}
+.ask-inline .ask-opt:hover{background:var(--orange);color:#fff}
+.ask-inline .ask-row{display:flex;gap:8px}
+.ask-inline .ask-input{flex:1;min-width:0;padding:7px 10px;border:1px solid var(--g2);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink)}
+.ask-inline .ask-input:focus{outline:none;border-color:var(--orange)}
+
+/* 1.2 B2: plan confirmation card (inline) */
+.plan-inline{margin-top:8px;padding:12px;border:1px solid var(--orange);border-radius:12px;background:var(--orange-ll);font-size:13px;color:var(--ink)}
+.plan-inline .plan-title{font-weight:600;color:var(--ink2);margin-bottom:8px}
+.plan-inline .plan-step{display:flex;gap:8px;margin:4px 0;color:var(--ink);align-items:flex-start}
+.plan-inline .plan-step .pn{flex-shrink:0;width:18px;height:18px;border-radius:50%;background:var(--orange);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.plan-inline .plan-actions{display:flex;gap:8px;margin-top:10px}
+.plan-inline .plan-edit{margin-top:8px;display:none}
+.plan-inline .plan-edit textarea{width:100%;min-height:56px;padding:8px 10px;border:1px solid var(--g2);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--ink);resize:vertical}
+.plan-inline .plan-edit.show{display:block}
 
 /* 记忆面板（M4：事实记忆 + 技能库） */
 .mem-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--g2);border-radius:10px;margin-bottom:6px;font-size:13px}
@@ -222,7 +261,8 @@ body.nav-bottom #bottomTabs{display:none}
 
 .today-grid{display:grid;grid-template-columns:1fr;gap:12px}
 .today-card{border-radius:var(--r-lg);padding:14px 16px;background:var(--surface);border:1px solid var(--g2);box-shadow:var(--shadow);position:relative;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s}
-.today-card:hover{transform:scale(1.03);box-shadow:0 12px 28px rgba(49,89,90,.14);border-color:rgba(22,134,111,.35)}
+.today-card:hover{transform:scale(1.045) translateY(-2px);box-shadow:0 18px 38px rgba(49,89,90,.18);border-color:rgba(22,134,111,.42);z-index:30}
+.today-card:hover .tc-list{max-height:none}
 .today-card::after{position:absolute;width:30px;height:9px;border-radius:3px;content:"";top:-4px;right:20px;transform:rotate(3deg);pointer-events:none}
 .today-card.over{border-color:rgba(217,95,95,.35);background:var(--danger-pale)}
 .today-card.over::after{background:rgba(217,95,95,.5)}
@@ -574,7 +614,14 @@ textarea.f-input{resize:vertical;min-height:76px}
 .his-item:hover{border-color:var(--orange);background:var(--g1)}
 .his-item .his-subj{font-size:13px;color:var(--ink)}
 .his-item .his-count{margin-left:auto;font-size:12px;color:var(--g4)}
-#todayPanel .chat-wrap{height:58vh;min-height:340px;margin-top:14px}
+.his-item .his-ops{display:none;gap:4px;margin-left:8px;flex-shrink:0}
+.his-item:hover .his-ops{display:flex}
+.his-ops button{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:1px solid var(--g2);border-radius:6px;background:transparent;color:var(--g4);cursor:pointer;font-size:12px;line-height:1;padding:0}
+.his-ops button:hover{border-color:var(--orange);color:var(--orange);background:var(--g1)}
+.his-ops button.his-del:hover{border-color:var(--red,#e5484d);color:var(--red,#e5484d)}
+.his-ops button.his-del-armed{border-color:var(--red,#e5484d);color:#fff;background:var(--red,#e5484d)}
+.his-input{flex:1;min-width:0;font-size:13px;color:var(--ink);background:var(--g1);border:1px solid var(--orange);border-radius:6px;padding:4px 8px;outline:none}
+#todayPanel .agent-dock .chat-wrap{height:var(--agent-dock-h,52vh);min-height:0;margin-top:0}
 </style>
 </head>
 <body>
@@ -721,11 +768,14 @@ textarea.f-input{resize:vertical;min-height:76px}
       </div>
       </div>
 
-      <div class="card-title" style="margin-top:22px">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/><path d="M19 15l.9 2.6L22.5 18.5l-2.6.9L19 22l-.9-2.6-2.6-.9 2.6-.9z"/></svg>
-        个人 Agent
-        <span class="hint">对话按天自动保存，可在「历史」中回看</span>
-      </div>
+      <div class="agent-dock" id="agentDock">
+        <div class="dock-handle" id="dockHandle" title="拖动调整高度 · 点击收起 / 展开">
+          <span class="dock-grip"></span>
+          <span class="dock-title">个人 Agent</span>
+          <button class="dock-collapse" id="dockCollapse" title="收起 / 展开">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </div>
       <div class="chat-wrap">
         <div class="chat-toolbar">
           <span class="set-label">模型</span>
@@ -744,13 +794,14 @@ textarea.f-input{resize:vertical;min-height:76px}
         <div id="agentSteps" style="display:none"></div>
         <div class="think-bar" id="thinkBar" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>
-          <span>思考中 <span class="think-secs">0</span>s</span>
+          <span><span class="think-label">思考中</span> <span class="think-secs">0</span>s</span>
         </div>
         <div class="chat-input-row">
           <textarea class="chat-input" id="chatInput" placeholder="输入消息，Enter 发送 / Shift+Enter 换行" rows="1"></textarea>
           <button class="btn btn-primary" id="chatSend" style="padding:12px 20px">发送</button>
         </div>
         <div class="chat-meta" id="chatMeta"></div>
+      </div>
       </div>
     </section>
 
@@ -4099,6 +4150,147 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(thinkTimer){ clearInterval(thinkTimer); thinkTimer = null; }
     qa('.think-bar').forEach(function(b){ b.style.display = 'none'; });
   }
+  // 1.2 B4: change the thinking bar wording during ask/plan cards.
+  function thinkSetLabel(label){
+    qa('.think-bar .think-label').forEach(function(s){ s.textContent = label || '思考中'; });
+  }
+
+  // ---- 1.2 B1: ask_user question card ----
+  function showAskCard(ev){
+    var log = $('chatLog');
+    if(!log) return;
+    var el = document.createElement('div');
+    el.className = 'ask-inline';
+    var options = (ev.options && ev.options.length) ? ev.options : [];
+    var optHtml = '';
+    options.forEach(function(o){ optHtml += '<button class="btn btn-sm ask-opt">' + esc(o) + '</button>'; });
+    el.innerHTML = '<div class="ask-q">🤔 ' + esc(ev.question || '请补充信息') + '</div>' +
+      (optHtml ? '<div class="ask-opts">' + optHtml + '</div>' : '') +
+      '<div class="ask-row"><input class="ask-input" placeholder="输入回答…">' +
+      '<button class="btn btn-sm btn-primary ask-send">回答</button></div>';
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    thinkSetLabel('正在向你确认…');
+    var input = el.querySelector('.ask-input');
+    function submit(v){
+      var ans = String(v || '').trim();
+      if(!ans){ if(input) input.focus(); return; }
+      var o = el.querySelector('.ask-opts'); if(o) o.style.display = 'none';
+      var r = el.querySelector('.ask-row'); if(r) r.style.display = 'none';
+      var q = el.querySelector('.ask-q'); if(q) q.innerHTML = '🤔 ' + esc(ev.question || '') + ' <span style="color:var(--g4)">→ 已回复</span>';
+      thinkSetLabel('思考中');
+      if(window.workplace.aiAnswer) window.workplace.aiAnswer(ans);
+      else toast('当前环境不支持交互澄清');
+    }
+    el.querySelectorAll('.ask-opt').forEach(function(b){
+      b.addEventListener('click', function(){ submit(b.textContent); });
+    });
+    var send = el.querySelector('.ask-send');
+    if(send) send.addEventListener('click', function(){ submit(input ? input.value : ''); });
+    if(input){
+      input.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); submit(input.value); } });
+      input.focus();
+    }
+  }
+
+  // ---- 1.2 B2: plan confirmation card ----
+  function showPlanCard(ev){
+    var log = $('chatLog');
+    if(!log) return;
+    var plan = (ev.plan && ev.plan.length) ? ev.plan : [];
+    if(!plan.length) return;
+    var stepsHtml = '';
+    plan.forEach(function(s, i){ stepsHtml += '<div class="plan-step"><span class="pn">' + (i + 1) + '</span><span>' + esc(s) + '</span></div>'; });
+    var el = document.createElement('div');
+    el.className = 'plan-inline';
+    el.innerHTML = '<div class="plan-title">📋 我计划这样做，确认后开始执行：</div>' + stepsHtml +
+      '<div class="plan-actions">' +
+        '<button class="btn btn-sm btn-primary plan-go">执行</button>' +
+        '<button class="btn btn-sm btn-ghost plan-mod">修改计划</button>' +
+        '<button class="btn btn-sm btn-ghost plan-cancel">取消</button>' +
+      '</div>' +
+      '<div class="plan-edit"><textarea class="plan-ta" placeholder="每行一个步骤…"></textarea>' +
+        '<div class="plan-actions" style="margin-top:8px"><button class="btn btn-sm btn-primary plan-save">按修改执行</button></div>' +
+      '</div>';
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    thinkSetLabel('正在向你确认…');
+    function done(){ thinkSetLabel('思考中'); }
+    function answer(action, p){
+      if(window.workplace.aiPlanAnswer){ window.workplace.aiPlanAnswer(action, p); done(); }
+      else { toast('当前环境不支持计划确认'); }
+    }
+    el.querySelector('.plan-go').addEventListener('click', function(){ answer('execute'); });
+    el.querySelector('.plan-cancel').addEventListener('click', function(){
+      answer('cancel');
+      el.innerHTML = '<div class="plan-title" style="color:var(--g4)">已取消</div>';
+    });
+    el.querySelector('.plan-mod').addEventListener('click', function(){
+      var ed = el.querySelector('.plan-edit');
+      ed.className = 'plan-edit show';
+      var ta = el.querySelector('.plan-ta');
+      ta.value = plan.join('\n');
+      ta.focus();
+    });
+    el.querySelector('.plan-save').addEventListener('click', function(){
+      var lines = el.querySelector('.plan-ta').value.split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
+      if(!lines.length){ toast('计划不能为空'); return; }
+      answer('edit', lines);
+      el.innerHTML = '<div class="plan-title">📋 已按修改后的计划执行</div>';
+    });
+  }
+
+  // ---- 1.2 A1: Agent floating dock (collapse/expand + drag-resize) ----
+  var DOCK_KEY = 'wb_agent_dock';       // '1' = collapsed
+  var DOCK_H_KEY = 'wb_agent_dock_h';   // height in px (empty = default CSS var)
+  function dockEl(){ return $('agentDock'); }
+  function dockCollapsed(){ var d = dockEl(); return !!d && d.className.indexOf('collapsed') >= 0; }
+  function setDockCollapsed(c){
+    var d = dockEl(); if(!d) return;
+    d.className = c ? 'agent-dock collapsed' : 'agent-dock';
+    try{ localStorage.setItem(DOCK_KEY, c ? '1' : '0'); }catch(e){}
+  }
+  function applyDockHeight(px){
+    var d = dockEl(); if(!d) return;
+    if(px > 0){ d.style.setProperty('--agent-dock-h', px + 'px'); }
+    else { d.style.removeProperty('--agent-dock-h'); }
+    try{ localStorage.setItem(DOCK_H_KEY, px > 0 ? String(px) : ''); }catch(e){}
+  }
+  function toggleDock(){ setDockCollapsed(!dockCollapsed()); }
+  function initDock(){
+    var d = dockEl(); if(!d) return;
+    try{
+      if(localStorage.getItem(DOCK_KEY) === '1') setDockCollapsed(true);
+      var h = parseInt(localStorage.getItem(DOCK_H_KEY) || '', 10);
+      if(!isNaN(h) && h > 120) applyDockHeight(h);
+    }catch(e){}
+    var handle = $('dockHandle');
+    var collapseBtn = $('dockCollapse');
+    if(collapseBtn) collapseBtn.addEventListener('click', function(e){ e.stopPropagation(); toggleDock(); });
+    if(handle){
+      var startY = 0, startH = 0, dragging = false, moved = 0;
+      handle.addEventListener('mousedown', function(e){
+        if(e.target && e.target.closest && e.target.closest('#dockCollapse')) return;
+        dragging = true; moved = 0;
+        startY = e.clientY;
+        var h = dockEl().querySelector('.chat-wrap');
+        startH = h ? h.offsetHeight : 0;
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove', function(e){
+        if(!dragging) return;
+        var dy = startY - e.clientY;   // drag up = taller
+        moved = Math.max(moved, Math.abs(e.clientY - startY));
+        var nh = Math.max(160, startH + dy);
+        applyDockHeight(nh);
+      });
+      document.addEventListener('mouseup', function(){
+        if(!dragging) return;
+        dragging = false;
+        if(moved < 5) toggleDock();   // treat as a click (collapse/expand)
+      });
+    }
+  }
 
   var lastUserText = '', lastAiEl = null, chatSending = false;
   function chatSend(){ sendText(''); }
@@ -4149,7 +4341,9 @@ textarea.f-input{resize:vertical;min-height:76px}
       if(ev.type === 'tool-start'){ agentToolTrace.push({ name: ev.name, args: ev.args }); agentStep(ev.name, 'doing', ev.args && ev.args['标题'] ? '：' + ev.args['标题'] : ''); }
       else if(ev.type === 'tool-done'){ agentStep(ev.name, 'ok', ''); }
       else if(ev.type === 'draft'){ showDraftCard(ev.draft); }
-      else if(ev.type === 'done'){ thinkStop(); if(chatAiEl) typeInto(chatAiEl, ev.content || ''); setChatMeta(ev.usage, ev.usage); chatLogScroll(); }
+      else if(ev.type === 'ask'){ showAskCard(ev); }
+      else if(ev.type === 'plan'){ showPlanCard(ev); }
+      else if(ev.type === 'done'){ thinkStop(); thinkSetLabel('思考中'); if(chatAiEl) typeInto(chatAiEl, ev.content || ''); setChatMeta(ev.usage, ev.usage); chatLogScroll(); }
     }).then(function(r){
       thinkStop();
       btn.disabled = false; btn.textContent = '发送';
@@ -4168,6 +4362,7 @@ textarea.f-input{resize:vertical;min-height:76px}
         runDetect();
         runMemExtract();
         maybeDistillSkill(r.rounds);
+        runClosingSuggest(r.rounds);
       } else {
         if(chatAiEl) chatAiEl.textContent = '出错了：' + ((r && r.error) || '未知');
         setChatMetaText('请求失败');
@@ -4308,10 +4503,14 @@ textarea.f-input{resize:vertical;min-height:76px}
         var items = groups[ds];
         html += '<div class="his-date' + (focusDate === ds ? ' focus' : '') + '" data-date="' + ds + '">' + ds + '（' + weekName(ds) + '）</div>';
         items.forEach(function(c){
-          var label = c.subject === MAIN_AGENT_SUBJECT ? '主 Agent' : c.subject;
-          html += '<div class="his-item" data-id="' + esc(c.id) + '" data-subj="' + esc(c.subject) + '">' +
+          var label = c.subject === MAIN_AGENT_SUBJECT ? '主 Agent' : (c.title || c.subject);
+          html += '<div class="his-item" data-id="' + esc(c.id) + '" data-subj="' + esc(c.subject) + '" data-title="' + esc(c.title || '') + '">' +
             '<span class="his-subj">' + esc(label) + '</span>' +
-            '<span class="his-count">' + (c.msg_count || 0) + ' 条</span></div>';
+            '<span class="his-count">' + (c.msg_count || 0) + ' 条</span>' +
+            '<span class="his-ops">' +
+              '<button data-op="rename" title="重命名">✎</button>' +
+              '<button data-op="del" class="his-del" title="删除会话">🗑</button>' +
+            '</span></div>';
         });
       });
       $('historyList').innerHTML = html;
@@ -4321,6 +4520,54 @@ textarea.f-input{resize:vertical;min-height:76px}
         if(el && el.scrollIntoView) el.scrollIntoView({ block: 'center' });
       }
     }).catch(function(){ toast('聊天记录加载失败'); });
+  }
+  // 1.2 D-block: rename / delete a conversation straight from the history tree.
+  // NOTE: renderer must NOT use window.prompt/confirm (Electron throws on prompt);
+  // use an inline input + two-click confirm instead (matches subject-AI list).
+  var hisDeleteArm = null;
+  function hisRename(id, item){
+    if(!item) return;
+    var subjEl = item.querySelector('.his-subj');
+    if(!subjEl) return;
+    var cur = item.getAttribute('data-title') || subjEl.textContent || '';
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'his-input';
+    inp.value = cur;
+    subjEl.replaceWith(inp);
+    inp.focus();
+    inp.select();
+    var committed = false;
+    var commit = function(){
+      if(committed) return;
+      committed = true;
+      var name = inp.value.trim();
+      if(!name){ toast('标题不能为空'); openHistory(''); return; }
+      window.workplace.convRename(id, name).then(function(r){
+        if(r && r.ok) toast('已重命名');
+        else toast('重命名失败：' + ((r && r.error) || '未知'));
+        openHistory('');
+      }).catch(function(){ toast('重命名失败'); openHistory(''); });
+    };
+    inp.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); commit(); }
+      else if(e.key === 'Escape'){ e.preventDefault(); committed = true; openHistory(''); }
+    });
+    inp.addEventListener('blur', function(){ commit(); });
+  }
+  function hisDelete(id, subj, btn){
+    var label = subj === MAIN_AGENT_SUBJECT ? '主 Agent' : (subj || '会话');
+    if(hisDeleteArm !== id){
+      hisDeleteArm = id;
+      if(btn){ btn.textContent = '确认'; btn.classList.add('his-del-armed'); }
+      toast('再次点击删除按钮确认删除「' + label + '」（不可恢复）');
+      return;
+    }
+    hisDeleteArm = null;
+    window.workplace.convDelete(id).then(function(r){
+      if(r && r.ok){ toast('已删除'); openHistory(''); }
+      else { toast('删除失败：' + ((r && r.error) || '未知')); openHistory(''); }
+    }).catch(function(){ toast('删除失败'); openHistory(''); });
   }
   // Schedule day-view jump: open the viewer located at that date's records.
   function jumpDayAgentLog(){
@@ -4513,6 +4760,31 @@ textarea.f-input{resize:vertical;min-height:76px}
       skillBusy = false;
       if(j && j.ok && j.data && j.data.有技能) showSkillCard(j.data);
     }).catch(function(){ skillBusy = false; });
+  }
+
+  // ---- 1.2 B3: task-closing suggestion (distinct from memory/skill cards) ----
+  // After a write op / multi-step task, show a lightweight, ignorable follow-up hint.
+  var closingSuggested = false;
+  function runClosingSuggest(rounds){
+    if(chatSending) return;
+    var wrote = agentToolTrace.some(function(t){ return t.name === 'create_schedule' || t.name === 'create_task' || t.name === 'create_memo'; });
+    var didWork = wrote || (rounds >= 2);
+    if(!didWork) return;
+    if(closingSuggested) return;
+    closingSuggested = true;
+    var log = $('chatLog');
+    if(!log) return;
+    var el = document.createElement('div');
+    el.className = 'draft-inline';
+    el.style.borderColor = 'var(--g3)';
+    var msg = wrote ? '✅ 已添加，要我顺便帮你设置提醒吗？' : '✅ 完成了，还需要我继续做什么吗？';
+    el.innerHTML = '<div class="draft-txt">' + msg + '</div>' +
+      '<button class="btn btn-sm btn-ghost closing-ok">不用了</button>';
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    el.querySelector('.closing-ok').addEventListener('click', function(){
+      el.innerHTML = '<div class="draft-txt" style="color:var(--g4)">' + msg + '</div>';
+    });
   }
 
   // ---- memory management panel (settings) ----
@@ -4937,6 +5209,9 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(item){
       var cid = item.getAttribute('data-id');
       var subj = item.getAttribute('data-subj');
+      var hop = t.getAttribute ? t.getAttribute('data-op') : null;
+      if(hop === 'rename'){ hisRename(cid, item); return; }
+      if(hop === 'del'){ hisDelete(cid, subj, t); return; }
       $('historyMask').className = 'modal-mask';
       if(subj === MAIN_AGENT_SUBJECT){
         loadMainConv(cid).then(function(ok){
@@ -4984,6 +5259,7 @@ textarea.f-input{resize:vertical;min-height:76px}
   probeBridge();
   checkAgent();
   restoreTodayConv();
+  initDock();
   applyModuleName();
   // 1.1: restore home-dashboard collapsed state
   try{
