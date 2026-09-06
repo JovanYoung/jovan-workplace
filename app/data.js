@@ -56,19 +56,46 @@ function snapshot() {
   } catch (e) {}
 }
 
-// Daily backup: one file per day, keep latest 30.
+// Conversations.db (chats + facts memory) lives in the same DATA_DIR. It is NOT
+// covered by workspace.json backups, so back it up daily too (1.2.1 fix). WAL is
+// checkpointed first so the copied file contains all recent writes.
+function dbFile() { return path.join(DATA_DIR, 'conversations.db'); }
+
+// Daily backup: workspace.json + conversations.db, one file per day, keep latest 30.
 function ensureDailyBackup() {
   try {
     const src = dataFile();
     if (!fs.existsSync(src)) return;
-    const dst = path.join(backupsDir(), 'workspace-' + todayStr() + '.json');
+    const day = todayStr();
+    const dst = path.join(backupsDir(), 'workspace-' + day + '.json');
     if (!fs.existsSync(dst)) {
       fs.copyFileSync(src, dst);
-      const files = fs.readdirSync(backupsDir()).filter((f) => f.endsWith('.json')).sort();
-      while (files.length > BACKUP_KEEP) {
-        const oldest = files.shift();
-        try { fs.unlinkSync(path.join(backupsDir(), oldest)); } catch (e) {}
+      pruneBackups('.json');
+    }
+    // chats + facts memory (conversations.db): checkpoint WAL then copy once per day
+    const db = dbFile();
+    if (fs.existsSync(db)) {
+      const dbDst = path.join(backupsDir(), 'conversations-' + day + '.db');
+      if (!fs.existsSync(dbDst)) {
+        try {
+          const { DatabaseSync } = require('node:sqlite');
+          const c = new DatabaseSync(db);
+          try { c.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch (e) {}
+          c.close();
+        } catch (e) {}
+        fs.copyFileSync(db, dbDst);
+        pruneBackups('.db');
       }
+    }
+  } catch (e) {}
+}
+
+function pruneBackups(ext) {
+  try {
+    const files = fs.readdirSync(backupsDir()).filter((f) => f.endsWith(ext)).sort();
+    while (files.length > BACKUP_KEEP) {
+      const oldest = files.shift();
+      try { fs.unlinkSync(path.join(backupsDir(), oldest)); } catch (e) {}
     }
   } catch (e) {}
 }
