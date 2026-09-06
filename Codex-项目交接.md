@@ -65,7 +65,7 @@ D:\Jovan's Workplace\
 
 ## 五、迭代与执行约定（很重要）
 
-**每期 = 我（主 PM）写"对接文档" → 执行会话(Codex/WorkBuddy 等)读文档 → 九/七/八问复述经确认 → 免打断执行 → 交「交接文档 + 危险操作报告」 → 我验收。**
+**每期 = 我（主 PM）写"对接文档" → 输出【开工建议卡】（模型选型/Prompt/架构红线/方案拍板，见 `开工把关清单.md`）→ 用户批准 → 执行会话(Codex/WorkBuddy 等)读文档 → 复述经确认 → 免打断执行 → 交「交接文档 + 危险操作报告」 → 我验收。**
 
 - 代码/注释英文、UI 文案中文；纯 JS 零新运行时 npm 依赖；renderer **禁 window.prompt/confirm**（用内行输入+modal）
 - git：main 分支，commit 前缀 feat/fix/docs(版本)；push 前自测
