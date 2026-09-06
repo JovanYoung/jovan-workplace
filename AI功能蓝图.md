@@ -21,6 +21,8 @@
 | **0.0.0** | 已发行（2026-08-28，GitHub Release）| ✅ |
 | **1.0.0** | A（AI 网关·多模型）+ B（对话 UI）+ F1（全模块主动检测）+ 一句话解析迁移 | 🚧 收尾中（**M1-M4 全 ✅**，2026-09-02；剩：GUI 体验复验 + 打包发行）|
 | **1.1** | 主页合并（仪表+Agent）+ 备忘重组（4 Tabs）+ 主 Agent 按天落库 + 会话树查看器 + 思考动画 | ✅ 完成（2026-09-03，062b7d7；待 GUI 观感确认）|
+| **1.2** | 主页 UI（Agent 悬浮 dock + 卡 hover 放大）+ 编排升级（ask_user/plan/收尾）+ 缓存布局 + fallback | 🚧 执行中（2026-09-03 交接 v2，404032f）|
+| **1.3** | 多 Agent：主 Agent 群聊（委派学科/独立子 Agent）+ 多角色渲染 + 子 Agent 独立模型 | 📋 规划（见下节）|
 | **1.1.0** | C（图片解析/截图讲题）+ D（课件翻译新 UI/生成文件）| 规划中 |
 | **1.2.0** | E（学科 AI）+ F2（历史搜索）+ G（记忆·Mem0 直接上）| 规划中 |
 | **1.3.0** | H（Galgame 分叉对话）| 概念期 |
@@ -167,6 +169,20 @@
 - [ ] **可管理**：技能列表 UI（查看/编辑/删除/禁用）——放设置 → 智能解析区或单独页
 
 ---
+
+## 四·五、1.3 多 Agent 群聊（规划，dsh alpha 方向验证后做）
+
+> 灵感：dsh v0.1.2-alpha（子 Agent 独立模型/异构子代理/主动推结果）+ Qwen Router/GroupChat。
+> 顺序原则：先单 Agent 聪明（1.2 编排），再多 Agent（1.3）——群聊里不能有"笨"Agent。
+
+### 设计
+- [ ] **委派工具（agent-as-tool）**：主进程工具 `delegate(subject|spawn, task, model?, thinking?)`
+  - `delegate_to_subject(数学, 任务)`：开子 Agent 循环（注入该学科记忆/资料 + 独立模型）→ 结果回传主 Agent → 记入会话（role=agent 标签）
+  - `spawn_subagent(name, task, tools[], model?)`：主 Agent 自己的临时子 Agent（默认 flash 快跑、深度任务 pro）
+- [ ] **多角色消息渲染（群聊观感）**：对话流消息带角色标签（主 Agent/数学 Agent/…），子 Agent 发言气泡区分
+- [ ] **子 Agent 独立配置**：模型/思考档位/输出上限（dsh alpha 同款）；委派记录可追溯（source_conv 机制已有）
+- [ ] **进阶**：后台子 Agent 并行 + 主动推结果（dsh reportDelivery，不做轮询）——等委派跑顺再上
+- [ ] 防失控：委派深度 ≤2、子任务 token 预算、子 Agent 写操作仍走 draft 确认
 
 ## 五、1.3.0：Galgame 分叉对话（H 模块，概念期）
 
