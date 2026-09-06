@@ -96,6 +96,10 @@ function shouldPlan(text) {
   for (let i = 0; i < kw.length; i++) if (t.indexOf(kw[i]) >= 0) return true;
   return false;
 }
+const activeAgentSessions = new Map();
+function validAgentSessionId(sessionId) {
+  return /^[A-Za-z0-9_-]{16,128}$/.test(String(sessionId || ''));
+}
 
 // ---- window & tray ----
 function showWin() {
@@ -180,8 +184,18 @@ function registerIpc() {
   });
 
   // ---- Agent tool loop (Step 1+2): model may call workbench tools; events streamed ----
-  ipcMain.handle('ai:agent', async (e, provider, model, messages, thinking) => {
+  ipcMain.handle('ai:agent', async (e, provider, model, messages, thinking, sessionId) => {
     const sender = e.sender;
+    if (!validAgentSessionId(sessionId)) return { ok: false, error: '无效会话标识' };
+    if (activeAgentSessions.has(sessionId)) return { ok: false, error: '会话已在运行' };
+    activeAgentSessions.set(sessionId, sender.id);
+    const onDestroyed = function () {
+      if (activeAgentSessions.get(sessionId) === sender.id) {
+        ai.cancelSession(sessionId);
+        activeAgentSessions.delete(sessionId);
+      }
+    };
+    sender.once('destroyed', onDestroyed);
     const msgs = messages || [];
     let lastUser = '';
     for (let i = msgs.length - 1; i >= 0; i--) {
@@ -209,8 +223,8 @@ function registerIpc() {
           ]
         });
         if (planResp.ok && planResp.data && Array.isArray(planResp.data.plan) && planResp.data.plan.length) {
-          if (sender && !sender.isDestroyed()) sender.send('ai:agent-event', { type: 'plan', plan: planResp.data.plan });
-          const decision = await ai.waitPlan();
+          if (sender && !sender.isDestroyed()) sender.send('ai:agent-event', { type: 'plan', plan: planResp.data.plan, sessionId: sessionId });
+          const decision = await ai.waitPlan(sessionId);
           if (!decision || decision.action === 'cancel') {
             return { ok: true, content: '', usage: { input: 0, output: 0, total: 0, rmb: 0 }, rounds: 0, planCancelled: true };
           }
@@ -225,22 +239,55 @@ function registerIpc() {
         messages: full,
         tools: tools.TOOL_DEFS,
         thinking: thinking,
+        sessionId: sessionId,
         executeTool: tools.executeTool,
         onEvent: function (ev) {
-          if (sender && !sender.isDestroyed()) sender.send('ai:agent-event', ev);
+          if (sender && !sender.isDestroyed()) sender.send('ai:agent-event', Object.assign({}, ev, { sessionId: sessionId }));
         }
       });
       return { ok: true, content: r.content, usage: r.usage, cost: r.usage, rounds: r.rounds, stopped: !!r.stopped, model: r.model, provider: r.provider, fallbackUsed: !!r.fallbackUsed };
     } catch (err) {
       return { ok: false, error: String(err.message || err) };
+    } finally {
+      ai.cancelSession(sessionId);
+      if (activeAgentSessions.get(sessionId) === sender.id) activeAgentSessions.delete(sessionId);
+      sender.removeListener('destroyed', onDestroyed);
     }
+  });
+  ipcMain.handle('ai:translate-text', async (e, provider, model, text) => {
+    try {
+      const r = await ai.chat({
+        provider: provider, model: model,
+        messages: [
+          { role: 'system', content: '你是课件翻译助手。只输出忠实、通顺的中文译文，不要解释、标题或 Markdown 围栏。' },
+          { role: 'user', content: String(text || '').slice(0, 3000) }
+        ]
+      });
+      return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
+    } catch (err) { return { ok: false, error: String(err.message || err) }; }
+  });
+  ipcMain.handle('ai:answer-context', async (e, provider, model, question, context) => {
+    try {
+      const r = await ai.chat({
+        provider: provider, model: model,
+        messages: [
+          { role: 'system', content: '你是课件答疑助手。优先且只依据用户提供的课件内容回答；资料不足时明确说课件未覆盖，回答简洁专业。' },
+          { role: 'user', content: '课件内容：\n' + String(context || '').slice(0, 3000) + '\n\n问题：\n' + String(question || '') }
+        ]
+      });
+      return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
+    } catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
 
   // ---- 1.2 B1: resolve a pending ask_user (renderer answer) ----
-  ipcMain.handle('ai:answer', (e, content) => ({ ok: ai.answerAsk(content) }));
+  ipcMain.handle('ai:answer', (e, sessionId, content) => ({
+    ok: activeAgentSessions.get(sessionId) === e.sender.id && ai.answerAsk(sessionId, content)
+  }));
 
   // ---- 1.2 B2: resolve a pending plan card (execute / edit / cancel) ----
-  ipcMain.handle('ai:plan-answer', (e, action, plan) => ({ ok: ai.answerPlan(action, plan) }));
+  ipcMain.handle('ai:plan-answer', (e, sessionId, action, plan) => ({
+    ok: activeAgentSessions.get(sessionId) === e.sender.id && ai.answerPlan(sessionId, action, plan)
+  }));
 
   // ---- Step 3: one-shot natural-language parse (flash + JSON output; pro on low-confidence) ----
   ipcMain.handle('ai:parse', async (e, text, pro) => {
@@ -280,12 +327,16 @@ function registerIpc() {
   ipcMain.handle('conv:delete', (e, id) => conv.deleteConversation(id));
   ipcMain.handle('conv:search', (e, q) => conv.search(q));
   // 1.1: append a single message (used to persist main-Agent turns)
-  ipcMain.handle('conv:append', (e, id, role, content) => {
+  ipcMain.handle('conv:append', (e, id, role, content, metadata) => {
     try {
       if (!conv.getConversation(id)) return { ok: false, error: '会话不存在' };
-      conv.appendMessage(id, role, content);
-      return { ok: true };
+      const message = conv.appendMessage(id, role, content, metadata);
+      return { ok: true, message: message };
     } catch (err) { return { ok: false, error: String(err.message || err) }; }
+  });
+  ipcMain.handle('conv:replace-assistant', (e, id, replacesMessageId, content, metadata) => {
+    try { return conv.replaceAssistantMessage(id, replacesMessageId, content, metadata); }
+    catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
   ipcMain.handle('conv:send', async (e, id, provider, model, text, thinking) => {
     const sender = e.sender;

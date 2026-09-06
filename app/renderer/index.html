@@ -1346,7 +1346,7 @@ textarea.f-input{resize:vertical;min-height:76px}
           <div class="about-item"><b>日程与任务</b>：日 / 周 / 日历 / 列表四种视图；详情里写「15:00-16:00」即自动进入当日时间表，填「地点」显示位置，时段随时可改；日视图可一键跳转当日 Agent 聊天记录</div>
           <div class="about-item"><b class="memo-name">备忘</b>：「亲友画像」登记忌口 / 雷点 / 喜好，生日开关决定日历显示与提前一月提醒；「技能」「学习词典」「记忆」收纳 AI 沉淀的经验与事实</div>
           <div class="about-item"><b>学习</b>：校内（学期 → 科目 → 笔记 / 课件 tut·lect）+ 校外备考；文本课件支持一键翻译与选中提问</div>
-          <div class="about-item"><b>数据</b>：本地 D:\dsh-data 存储 + 每日自动备份到 ima；删除先进回收站（30 天可恢复），操作全留痕（日志保留 1 年）</div>
+          <div class="about-item"><b>数据</b>：本地 D:\Jovan's Workplace\data 存储 + 每日自动备份；删除先进回收站（30 天可恢复），操作全留痕（日志保留 1 年）</div>
           <div class="about-item"><b>一句话添加</b>：机械解析会学习你的习惯越用越准，拿不准时点「AI 深度解析」</div>
         </div>
       </div>
@@ -1633,8 +1633,6 @@ textarea.f-input{resize:vertical;min-height:76px}
     loadData();
   }
 
-  var bridgeOk=false;
-  var BRIDGE='http://127.0.0.1:8787';
   var birthdayMap={};
   var bdayByYear={};
   function localBdays(year){
@@ -1658,18 +1656,13 @@ textarea.f-input{resize:vertical;min-height:76px}
       bdayByYear[year]=m;
       return m;
     }).catch(function(){ return null; });
-    return fetch(BRIDGE+'/bday?year='+year,{mode:'cors'}).then(function(r){ return r.json(); }).then(function(j){
-      var m={};
-      (j.birthdays||[]).forEach(function(b){ m[b.id]={name:b.name,dates:b.dates||[]}; });
-      bdayByYear[year]=m;
-      return m;
-    }).catch(function(){ return null; });
+    var local = localBdays(year);
+    bdayByYear[year]=local;
+    return Promise.resolve(local);
   }
   function convCall(mode,params){
     if(hasWP) return window.workplace.conv(mode,params).catch(function(){ return {ok:false}; });
-    var qs='mode='+mode;
-    Object.keys(params||{}).forEach(function(k){ qs+='&'+k+'='+encodeURIComponent(params[k]); });
-    return fetch(BRIDGE+'/conv?'+qs,{mode:'cors'}).then(function(r){ return r.json(); }).catch(function(){ return {ok:false}; });
+    return Promise.resolve({ok:false, error:'仅桌面版支持农历换算'});
   }
   function wList(){
     if(hasWP) return window.workplace.loadData().then(function(j){
@@ -1695,14 +1688,6 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(hasWP) return wMutate('delete',{id:id}).then(function(){ return loadData(); });
     ALL_ROWS=ALL_ROWS.filter(function(r){ return r._id!==id; });
     localSave(ALL_ROWS); renderAll(); return Promise.resolve();
-  }
-  function probeBridge(){
-    if(location.protocol==='https:'){ bridgeOk=false; return; }
-    fetch(BRIDGE+'/ping',{mode:'cors'}).then(function(){
-      bridgeOk=true;
-    }).catch(function(){
-      bridgeOk=false;
-    });
   }
   var LOG_ROWS=[],TRASH_ROWS=[];
   function nowStamp(){ var d=new Date(),p=function(n){ return ('0'+n).slice(-2); }; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
@@ -1933,7 +1918,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     var bmap=bdayByYear[year];
     if(!bmap){
       bmap=localBdays(year);
-      if(hasWP||bridgeOk) fetchBdays(year).then(function(){ renderCal(); });
+      if(hasWP) fetchBdays(year).then(function(){ renderCal(); });
     }
     Object.keys(bmap).forEach(function(id){
       var b=bmap[id];
@@ -2318,7 +2303,7 @@ textarea.f-input{resize:vertical;min-height:76px}
         toast(FAM_EDIT?'已更新':'已添加亲友');
       }).catch(function(){ btn.disabled=false; btn.textContent='完成'; toast('保存失败，请重试'); });
     };
-    if(!bridgeOk){
+    if(!hasWP){
       if(isLunar){
         var lm=parseInt($('famBM').value,10), ld=parseInt($('famBD').value,10);
         if(!lm||!ld){ toast('请选择农历月日'); btn.disabled=false; return; }
@@ -2584,23 +2569,27 @@ textarea.f-input{resize:vertical;min-height:76px}
   function slideTranslate(id){
     var r=null; ALL_ROWS.forEach(function(x){ if(x._id===id) r=x; });
     if(!r||!r['详情']){ toast('课件内容为空'); return; }
-    if(!bridgeOk){ toast('翻译需要本地桥（本地预览或 EXE）'); return; }
-    showResult('翻译中…','正在调用 Agent 翻译（首次约 1 分钟预热）…');
-    fetch(BRIDGE+'/translate?text='+encodeURIComponent(String(r['详情']).slice(0,3000)),{mode:'cors'}).then(function(res){ return res.json(); }).then(function(j){
-      showResult('译文',j.ok?j.translated:('翻译失败：'+(j.error||'未知')));
-    }).catch(function(){ showResult('译文','网络错误，请确认本地桥已启动'); });
+    var sel=$('chatModelSel'), val=sel&&sel.value;
+    if(!hasWP || !val){ toast('请先在 设置 → AI 模型 配置 API Key'); return; }
+    var parts=val.split('|');
+    showResult('翻译中…','正在使用内置 AI 翻译前 3000 字课件内容…');
+    window.workplace.aiTranslateText(parts[0],parts[1],String(r['详情']).slice(0,3000)).then(function(j){
+      showResult('译文',j&&j.ok?j.content:('翻译失败：'+((j&&j.error)||'未知')));
+    }).catch(function(){ showResult('译文','内置 AI 请求失败，请检查模型配置'); });
   }
   function sendAsk(){
     var q=$('askQ').value.trim();
     if(!q){ toast('请输入问题'); return; }
     var r=null; ALL_ROWS.forEach(function(x){ if(x._id===ASK_TARGET) r=x; });
     if(!r){ toast('未找到课件'); return; }
-    if(!bridgeOk){ toast('提问需要本地桥（本地预览或 EXE）'); return; }
+    var sel=$('chatModelSel'), val=sel&&sel.value;
+    if(!hasWP || !val){ toast('请先在 设置 → AI 模型 配置 API Key'); return; }
+    var parts=val.split('|');
     $('askMask').className='modal-mask';
-    showResult('Agent 思考中…','已提交问题，正在结合课件内容回答（首次约 1 分钟预热）…');
-    fetch(BRIDGE+'/ask?q='+encodeURIComponent(q)+'&ctx='+encodeURIComponent(String(r['详情']||'').slice(0,3000)),{mode:'cors'}).then(function(res){ return res.json(); }).then(function(j){
-      showResult('回答',j.ok?j.answer:('失败：'+(j.error||'未知')));
-    }).catch(function(){ showResult('回答','网络错误，请确认本地桥已启动'); });
+    showResult('Agent 思考中…','正在结合课件前 3000 字内容回答…');
+    window.workplace.aiAnswerContext(parts[0],parts[1],q,String(r['详情']||'').slice(0,3000)).then(function(j){
+      showResult('回答',j&&j.ok?j.content:('失败：'+((j&&j.error)||'未知')));
+    }).catch(function(){ showResult('回答','内置 AI 请求失败，请检查模型配置'); });
   }
   function renderMemo(){
     // 1.1: "老忘记的事儿" UI retired (data kept in workspace.json); the memo
@@ -2882,7 +2871,7 @@ textarea.f-input{resize:vertical;min-height:76px}
             }
             resolve(props);
           };
-          if(!bridgeOk){
+          if(!hasWP){
             if(isLunar){
               var lm=parseInt($('fBirthLunarM').value,10), ld=parseInt($('fBirthLunarD').value,10);
               if(!lm||!ld){ toast('请选择农历月日'); return resolve(null); }
@@ -4179,7 +4168,9 @@ textarea.f-input{resize:vertical;min-height:76px}
       var r = el.querySelector('.ask-row'); if(r) r.style.display = 'none';
       var q = el.querySelector('.ask-q'); if(q) q.innerHTML = '🤔 ' + esc(ev.question || '') + ' <span style="color:var(--g4)">→ 已回复</span>';
       thinkSetLabel('思考中');
-      if(window.workplace.aiAnswer) window.workplace.aiAnswer(ans);
+      if(window.workplace.aiAnswer) window.workplace.aiAnswer(ev.sessionId, ans).then(function(r){
+        if(!r || !r.ok) toast('该问题已失效，请重新发起对话');
+      });
       else toast('当前环境不支持交互澄清');
     }
     el.querySelectorAll('.ask-opt').forEach(function(b){
@@ -4217,7 +4208,9 @@ textarea.f-input{resize:vertical;min-height:76px}
     thinkSetLabel('正在向你确认…');
     function done(){ thinkSetLabel('思考中'); }
     function answer(action, p){
-      if(window.workplace.aiPlanAnswer){ window.workplace.aiPlanAnswer(action, p); done(); }
+      if(window.workplace.aiPlanAnswer){ window.workplace.aiPlanAnswer(ev.sessionId, action, p).then(function(r){
+        if(r && r.ok) done(); else toast('该计划已失效，请重新发起对话');
+      }); }
       else { toast('当前环境不支持计划确认'); }
     }
     el.querySelector('.plan-go').addEventListener('click', function(){ answer('execute'); });
@@ -4292,7 +4285,11 @@ textarea.f-input{resize:vertical;min-height:76px}
     }
   }
 
-  var lastUserText = '', lastAiEl = null, chatSending = false;
+  var lastUserText = '', lastAiEl = null, chatSending = false, lastAssistantMessageId = null;
+  function newAgentSessionId(){
+    if(window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    return 'agent_' + Date.now() + '_' + Math.random().toString(36).slice(2, 18);
+  }
   function chatSend(){ sendText(''); }
   function regenChat(){
     if(!lastUserText){ toast('没有可重新生成的消息'); return; }
@@ -4335,8 +4332,9 @@ textarea.f-input{resize:vertical;min-height:76px}
     thinkStart('thinkBar');
 
     var thinking = thinkKey();
+    var agentSessionId = newAgentSessionId();
     ensureMainConv().then(function(mainCid){
-    window.workplace.aiAgent(provider, model, chatHistory.slice(), thinking, function(ev){
+    window.workplace.aiAgent(provider, model, chatHistory.slice(), thinking, agentSessionId, function(ev){
       if(!ev) return;
       if(ev.type === 'tool-start'){ agentToolTrace.push({ name: ev.name, args: ev.args }); agentStep(ev.name, 'doing', ev.args && ev.args['标题'] ? '：' + ev.args['标题'] : ''); }
       else if(ev.type === 'tool-done'){ agentStep(ev.name, 'ok', ''); }
@@ -4356,8 +4354,15 @@ textarea.f-input{resize:vertical;min-height:76px}
         chatLogScroll();
         // 1.1: persist this turn into today's main-Agent conversation
         if(mainCid && window.workplace.convAppend){
-          if(!isRegen) window.workplace.convAppend(mainCid, 'user', text).then(function(){ window.workplace.convAppend(mainCid, 'assistant', r.content || ''); });
-          else window.workplace.convAppend(mainCid, 'assistant', r.content || '');
+          var meta={provider:r.provider||provider,model:r.model||model,usage:r.usage||null,cost:r.cost||null,tool_trace:agentToolTrace||[]};
+          if(!isRegen) window.workplace.convAppend(mainCid, 'user', text).then(function(){
+            return window.workplace.convAppend(mainCid, 'assistant', r.content || '', meta);
+          }).then(function(saved){ if(saved&&saved.ok&&saved.message) lastAssistantMessageId=saved.message.id; });
+          else if(lastAssistantMessageId && window.workplace.convReplaceAssistant){
+            window.workplace.convReplaceAssistant(mainCid,lastAssistantMessageId,r.content||'',meta).then(function(saved){
+              if(saved&&saved.ok&&saved.message) lastAssistantMessageId=saved.message.id;
+            });
+          } else window.workplace.convAppend(mainCid, 'assistant', r.content || '', meta).then(function(saved){ if(saved&&saved.ok&&saved.message) lastAssistantMessageId=saved.message.id; });
         }
         runDetect();
         runMemExtract();
@@ -4400,7 +4405,7 @@ textarea.f-input{resize:vertical;min-height:76px}
   function chatClear(){
     stopType();
     thinkStop();
-    lastAiEl = null; lastUserText = '';
+    lastAiEl = null; lastUserText = ''; lastAssistantMessageId = null;
     chatHistory = [];
     chatAiEl = null;
     mainConvId = null;      // next send starts a fresh conversation for today
@@ -4456,7 +4461,10 @@ textarea.f-input{resize:vertical;min-height:76px}
       if(!r || !r.ok) return false;
       mainConvId = id;
       mainConvFresh = false;
-      chatHistory = (r.messages || []).filter(function(m){ return m.role === 'user' || m.role === 'assistant'; })
+      var storedMessages=(r.messages || []).filter(function(m){ return m.role === 'user' || m.role === 'assistant'; });
+      lastAssistantMessageId=null;
+      storedMessages.forEach(function(m){ if(m.role==='assistant') lastAssistantMessageId=m.id; });
+      chatHistory = storedMessages
         .map(function(m){ return { role: m.role, content: m.content }; });
       var log = $('chatLog');
       if(log){
@@ -5256,7 +5264,6 @@ textarea.f-input{resize:vertical;min-height:76px}
 
   if(!hasWP) setSync('off','离线模式 · 本地预览');
   loadOptions();
-  probeBridge();
   checkAgent();
   restoreTodayConv();
   initDock();

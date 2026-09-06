@@ -388,16 +388,20 @@ async function jsonOutput(params) {
 // ---- ask_user bridge (Step 2 / 1.2 B1) ----
 // runAgentLoop pauses when the model calls ask_user; the renderer shows a question
 // card and the user's answer arrives via answerAsk() (wired to ai:answer IPC).
-// A single pending resolver is enough because ask_user calls are handled serially.
+// Resolvers are isolated by agent run. Calls within a run remain serial, but a
+// future child conversation must never receive a main conversation's answer.
 const ASK_MAX = 3;
-let _askResolve = null;
-function waitAsk() {
-  return new Promise(function (resolve) { _askResolve = resolve; });
+const pendingAsks = new Map();
+const pendingPlans = new Map();
+function waitAsk(sessionId) {
+  if (!sessionId) return Promise.reject(new Error('ask session id is required'));
+  if (pendingAsks.has(sessionId)) return Promise.reject(new Error('ask already pending for session'));
+  return new Promise(function (resolve) { pendingAsks.set(sessionId, resolve); });
 }
-function answerAsk(content) {
-  if (_askResolve) {
-    const r = _askResolve;
-    _askResolve = null;
+function answerAsk(sessionId, content) {
+  const r = pendingAsks.get(sessionId);
+  if (r) {
+    pendingAsks.delete(sessionId);
     r(String(content == null ? '' : content));
     return true;
   }
@@ -407,18 +411,25 @@ function answerAsk(content) {
 // ---- plan-then-act bridge (1.2 B2) ----
 // Complex delegations first propose a plan; the renderer shows a plan card and the
 // user's decision (execute / edit / cancel) arrives via answerPlan().
-let _planResolve = null;
-function waitPlan() {
-  return new Promise(function (resolve) { _planResolve = resolve; });
+function waitPlan(sessionId) {
+  if (!sessionId) return Promise.reject(new Error('plan session id is required'));
+  if (pendingPlans.has(sessionId)) return Promise.reject(new Error('plan already pending for session'));
+  return new Promise(function (resolve) { pendingPlans.set(sessionId, resolve); });
 }
-function answerPlan(action, plan) {
-  if (_planResolve) {
-    const r = _planResolve;
-    _planResolve = null;
+function answerPlan(sessionId, action, plan) {
+  const r = pendingPlans.get(sessionId);
+  if (r) {
+    pendingPlans.delete(sessionId);
     r({ action: String(action || 'execute'), plan: plan });
     return true;
   }
   return false;
+}
+function cancelSession(sessionId) {
+  const ask = pendingAsks.get(sessionId);
+  if (ask) { pendingAsks.delete(sessionId); ask(null); }
+  const plan = pendingPlans.get(sessionId);
+  if (plan) { pendingPlans.delete(sessionId); plan({ action: 'cancel', plan: null }); }
 }
 
 // ---- provider fallback (1.2 C2) ----
@@ -458,6 +469,8 @@ async function runAgentLoop(params) {
   const executeTool = params.executeTool;
   const onEvent = params.onEvent || function () {};
   const thinking = params.thinking;
+  const sessionId = params.sessionId;
+  if (!sessionId) throw new Error('agent session id is required');
 
   const MAX_ROUNDS = maxToolRounds();
   let totalUsage = { input: 0, output: 0, total: 0, rmb: 0 };
@@ -522,7 +535,7 @@ async function runAgentLoop(params) {
       } else {
         askCount++;
         onEvent({ type: 'ask', question: String(args.question || ''), options: args.options || [], id: tc.id });
-        answer = await waitAsk();
+        answer = await waitAsk(sessionId);
         if (answer == null || String(answer).trim() === '') answer = '（用户未补充信息，请按你的合理判断继续）';
       }
       const text = JSON.stringify({ answer: answer });
@@ -606,7 +619,9 @@ module.exports = {
   runAgentLoop,
   answerAsk,
   answerPlan,
+  waitAsk,
   waitPlan,
+  cancelSession,
   thinkingParams,
   maxToolRounds,
   SYSTEM_PROMPT

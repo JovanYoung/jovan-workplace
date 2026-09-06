@@ -55,7 +55,20 @@ function init() {
       created_at INTEGER
     );
   `);
+  ensureMessageColumn('message_uid', 'TEXT');
+  ensureMessageColumn('is_current', 'INTEGER NOT NULL DEFAULT 1');
+  ensureMessageColumn('is_archived', 'INTEGER NOT NULL DEFAULT 0');
+  ensureMessageColumn('replaces_message_id', 'INTEGER');
+  ensureMessageColumn('metadata_json', 'TEXT');
+  db.prepare("UPDATE messages SET message_uid = 'm_' || id WHERE message_uid IS NULL OR message_uid = ''").run();
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_uid ON messages(message_uid);');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_messages_active ON messages(conv_id, is_current, is_archived, ts, id);');
   return db;
+}
+
+function ensureMessageColumn(name, declaration) {
+  const cols = db.prepare('PRAGMA table_info(messages)').all();
+  if (!cols.some(function (c) { return c.name === name; })) db.exec('ALTER TABLE messages ADD COLUMN ' + name + ' ' + declaration);
 }
 
 function now() { return Date.now(); }
@@ -122,20 +135,51 @@ function deleteConversation(id) {
 }
 
 // ---- messages ----
-function appendMessage(id, role, content) {
+function parseMetadata(raw) {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+
+function appendMessage(id, role, content, metadata) {
   init();
   const ts = now();
-  const r = db.prepare('INSERT INTO messages (conv_id, role, content, ts) VALUES (?,?,?,?)')
-    .run(id, role, String(content || ''), ts);
+  const messageUid = genId('m');
+  const r = db.prepare('INSERT INTO messages (message_uid, conv_id, role, content, ts, metadata_json) VALUES (?,?,?,?,?,?)')
+    .run(messageUid, id, role, String(content || ''), ts, metadata ? JSON.stringify(metadata) : null);
   // keep FTS index in sync (manual double-write)
   db.prepare('INSERT INTO messages_fts (rowid, content) VALUES (?,?)').run(r.lastInsertRowid, String(content || ''));
   touchConversation(id);
-  return r.lastInsertRowid;
+  return { id: Number(r.lastInsertRowid), message_uid: messageUid, ts: ts };
 }
 
-function getMessages(id) {
+function replaceAssistantMessage(convId, replacesMessageId, content, metadata) {
   init();
-  return db.prepare('SELECT id, role, content, ts FROM messages WHERE conv_id = ? ORDER BY ts ASC, id ASC').all(id);
+  const previous = db.prepare('SELECT id FROM messages WHERE id = ? AND conv_id = ? AND role = ? AND is_current = 1')
+    .get(replacesMessageId, convId, 'assistant');
+  if (!previous) return { ok: false, error: '待替换消息不存在或已过期' };
+  const ts = now();
+  const messageUid = genId('m');
+  try {
+    db.exec('BEGIN IMMEDIATE');
+    db.prepare('UPDATE messages SET is_current = 0 WHERE id = ?').run(replacesMessageId);
+    const r = db.prepare('INSERT INTO messages (message_uid, conv_id, role, content, ts, replaces_message_id, metadata_json) VALUES (?,?,?,?,?,?,?)')
+      .run(messageUid, convId, 'assistant', String(content || ''), ts, replacesMessageId, metadata ? JSON.stringify(metadata) : null);
+    db.prepare('INSERT INTO messages_fts (rowid, content) VALUES (?,?)').run(r.lastInsertRowid, String(content || ''));
+    touchConversation(convId);
+    db.exec('COMMIT');
+    return { ok: true, message: { id: Number(r.lastInsertRowid), message_uid: messageUid, ts: ts } };
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch (e) {}
+    return { ok: false, error: String(err.message || err) };
+  }
+}
+
+function getMessages(id, options) {
+  init();
+  const includeArchived = !!(options && options.includeArchived);
+  const sql = 'SELECT id, message_uid, role, content, ts, is_current, is_archived, replaces_message_id, metadata_json FROM messages WHERE conv_id = ? AND is_current = 1' +
+    (includeArchived ? '' : ' AND is_archived = 0') + ' ORDER BY ts ASC, id ASC';
+  return db.prepare(sql).all(id);
 }
 
 function loadConversation(id) {
@@ -143,7 +187,7 @@ function loadConversation(id) {
   const conv = getConversation(id);
   if (!conv) return { ok: false, error: '会话不存在' };
   const msgs = getMessages(id).map(function (m) {
-    return { role: m.role, content: m.content, ts: m.ts };
+    return { id: m.id, message_uid: m.message_uid, role: m.role, content: m.content, ts: m.ts, metadata: parseMetadata(m.metadata_json) };
   });
   return { ok: true, conv: conv, messages: msgs };
 }
@@ -174,16 +218,16 @@ async function compressIfNeeded(id, provider, model) {
   const summary = await summarize(old, provider, model);
   if (!summary) return false;
 
-  // delete the summarized messages (and their FTS rows)
+  // Archive summarized messages instead of deleting them. This preserves original
+  // nodes for branching and audit while excluding them from the default context.
   const oldIds = old.map(function (m) { return m.id; });
   const placeholders = oldIds.map(function () { return '?'; }).join(',');
-  db.prepare('DELETE FROM messages_fts WHERE rowid IN (' + placeholders + ')').run(...oldIds);
-  db.prepare('DELETE FROM messages WHERE id IN (' + placeholders + ')').run(...oldIds);
+  db.prepare('UPDATE messages SET is_archived = 1 WHERE id IN (' + placeholders + ')').run(...oldIds);
 
   // insert summary as a special message, timestamped at the front of the window
   const firstTs = old[0] ? old[0].ts : now();
-  const r = db.prepare('INSERT INTO messages (conv_id, role, content, ts) VALUES (?,?,?,?)')
-    .run(id, 'summary', summary, firstTs);
+  const r = db.prepare('INSERT INTO messages (message_uid, conv_id, role, content, ts, metadata_json) VALUES (?,?,?,?,?,?)')
+    .run(genId('m'), id, 'summary', summary, firstTs, JSON.stringify({ archived_message_ids: oldIds }));
   db.prepare('INSERT INTO messages_fts (rowid, content) VALUES (?,?)').run(r.lastInsertRowid, summary);
   return true;
 }
@@ -330,8 +374,8 @@ async function sendMessage(id, provider, model, text, thinking, onChunk) {
     thinking: thinking, onChunk: onChunk
   });
 
-  appendMessage(id, 'user', question);
-  appendMessage(id, 'assistant', r.content || '');
+  appendMessage(id, 'user', question, { provider: provider, model: model });
+  appendMessage(id, 'assistant', r.content || '', { provider: r.provider || provider, model: r.model || model, usage: r.usage, cost: r.cost });
   return { content: r.content, usage: r.usage, cost: r.cost };
 }
 
@@ -365,6 +409,7 @@ module.exports = {
   loadConversation,
   getConversation,
   appendMessage,
+  replaceAssistantMessage,
   renameConversation,
   clearConversation,
   deleteConversation,

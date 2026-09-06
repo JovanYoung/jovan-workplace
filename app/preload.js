@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('workplace', {
   aiSaveKey: (provider, apiKey) => ipcRenderer.invoke('ai:save-key', provider, apiKey),
   aiTest: (provider) => ipcRenderer.invoke('ai:test', provider),
   aiSetCustomModels: (pid, names) => ipcRenderer.invoke('ai:set-custom-models', pid, names),
+  aiTranslateText: (provider, model, text) => ipcRenderer.invoke('ai:translate-text', provider, model, text),
+  aiAnswerContext: (provider, model, question, context) => ipcRenderer.invoke('ai:answer-context', provider, model, question, context),
   // Streaming chat: onChunk receives {delta} per token; returns final {ok, content, usage, cost}.
   aiChat: (provider, model, messages, onChunk) => {
     const listener = (e, data) => { if (typeof onChunk === 'function') onChunk(data); };
@@ -29,17 +31,19 @@ contextBridge.exposeInMainWorld('workplace', {
     });
   },
   // Agent tool loop (Step 1+2): onEvent receives {type,...} events; returns final {ok, content, usage, rounds}.
-  aiAgent: (provider, model, messages, thinking, onEvent) => {
-    const listener = (e, data) => { if (typeof onEvent === 'function') onEvent(data); };
+  aiAgent: (provider, model, messages, thinking, sessionId, onEvent) => {
+    const listener = (e, data) => {
+      if (data && data.sessionId === sessionId && typeof onEvent === 'function') onEvent(data);
+    };
     ipcRenderer.on('ai:agent-event', listener);
-    return ipcRenderer.invoke('ai:agent', provider, model, messages, thinking).finally(function () {
+    return ipcRenderer.invoke('ai:agent', provider, model, messages, thinking, sessionId).finally(function () {
       ipcRenderer.removeListener('ai:agent-event', listener);
     });
   },
   // 1.2 B1: answer a pending ask_user question card
-  aiAnswer: (content) => ipcRenderer.invoke('ai:answer', content),
+  aiAnswer: (sessionId, content) => ipcRenderer.invoke('ai:answer', sessionId, content),
   // 1.2 B2: resolve a pending plan card ('execute' | 'edit' | 'cancel')
-  aiPlanAnswer: (action, plan) => ipcRenderer.invoke('ai:plan-answer', action, plan),
+  aiPlanAnswer: (sessionId, action, plan) => ipcRenderer.invoke('ai:plan-answer', sessionId, action, plan),
   aiParse: (text, pro) => ipcRenderer.invoke('ai:parse', text, pro),
   aiDetect: (messages) => ipcRenderer.invoke('ai:detect', messages),
   aiDictLoad: () => ipcRenderer.invoke('ai:dict-load'),
@@ -55,7 +59,8 @@ contextBridge.exposeInMainWorld('workplace', {
   convDelete: (id) => ipcRenderer.invoke('conv:delete', id),
   convSearch: (q) => ipcRenderer.invoke('conv:search', q),
   // 1.1: persist main-Agent turns into conversations.db
-  convAppend: (id, role, content) => ipcRenderer.invoke('conv:append', id, role, content),
+  convAppend: (id, role, content, metadata) => ipcRenderer.invoke('conv:append', id, role, content, metadata),
+  convReplaceAssistant: (id, replacesMessageId, content, metadata) => ipcRenderer.invoke('conv:replace-assistant', id, replacesMessageId, content, metadata),
   convSend: (id, provider, model, text, thinking, onChunk) => {
     const listener = (e, data) => { if (typeof onChunk === 'function') onChunk(data); };
     ipcRenderer.on('conv:chunk', listener);

@@ -72,7 +72,7 @@ Jovan's Workplace 是一个**完全本地、数据由你掌控**的个人效率�
 |---|---|
 | 打开弹「未知发布者」？ | 点「更多信息 → 仍要运行」（未签名，正常现象）|
 | 杀毒软件报毒？ | 未签名 Electron 应用常见误报，选「允许运行」；或改用绿色 zip |
-| AI 功能没反应？ | 一句话解析 / 翻译 / 课件提问 / Agent 需先启动本地服务 dsh-bridge（`127.0.0.1:8787` / `3080`）；**数据读写不受影响** |
+| AI 功能没反应？ | 请在设置中配置可用 AI 模型/API Key；一句话解析、翻译、课件提问和 Agent 均使用桌面端内置网关。 |
 | 换电脑数据怎么办？ | 设置 → 数据 → 导出 JSON，新电脑导入恢复；或开启 ima 云备份 |
 | 装不上 / 打不开？ | 确认 Windows 10+、磁盘 ≥ 400MB、SmartScreen 已放行 |
 
@@ -124,7 +124,7 @@ Jovan's Workplace is a **fully local, data-you-own** productivity workspace: a 4
 |---|---|
 | "Unknown publisher" prompt? | More info → Run anyway (unsigned, expected) |
 | Antivirus flags the app? | Common false positive for unsigned Electron; allow it, or use the portable zip |
-| AI features not working? | One-sentence parse / translation / slide Q&A / Agent need the local dsh-bridge (`127.0.0.1:8787` / `3080`); **data I/O is unaffected** |
+| AI features not working? | Configure a usable AI model/API key in Settings. Parsing, translation, slide Q&A, and Agent use the desktop app's built-in gateway. |
 | Switching computers? | Settings → Data → Export JSON, then Import on the new machine; or enable ima cloud backup |
 | Won't install / open? | Ensure Windows 10+, ≥400MB free disk, SmartScreen allowed |
 
