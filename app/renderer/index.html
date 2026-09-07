@@ -2502,7 +2502,7 @@ body{background:var(--bg);background-image:none}
     if(!sems.length) html+='<div class="list-empty">还没有学期，先「添加新学期」创建第一个</div>';
     sems.forEach(function(r){
       var n=subRecords(r['标题']||'').length;
-      html+='<div class="sem-card" data-act="sem-open" data-sem="'+esc(r['标题'])+'">';
+      html+='<div class="sem-card" data-act="sem-open" data-sem="'+esc(r['标题'])+'" role="button" tabindex="0" aria-label="打开学期 '+esc(r['标题'])+'">';
       html+='<div class="sem-emoji">📅</div><div class="sem-name">'+esc(r['标题'])+'</div>';
       html+='<div class="sem-count">'+n+' 个科目</div>';
       html+='<svg class="sem-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
@@ -2517,7 +2517,7 @@ body{background:var(--bg);background-image:none}
     if(!subs.length) html+='<div class="list-empty">这个学期还没有科目，先「添加新科目」</div>';
     subs.forEach(function(r){
       var n=contentRows(learnLevel.sem,r['标题']||'').length;
-      html+='<div class="sem-card" data-act="sub-open" data-sub="'+esc(r['标题'])+'">';
+      html+='<div class="sem-card" data-act="sub-open" data-sub="'+esc(r['标题'])+'" role="button" tabindex="0" aria-label="打开科目 '+esc(r['标题'])+'">';
       html+='<div class="sem-emoji">📘</div><div class="sem-name">'+esc(r['标题'])+'</div>';
       html+='<div class="sem-count">'+n+' 项内容</div>';
       html+='<button class="btn btn-sm btn-ghost" data-act="sub-ai" data-sub="'+esc(r['标题'])+'" title="向该学科提问（带笔记/课件上下文）" style="flex-shrink:0;padding:6px 12px">🤖 问 AI</button>';
@@ -3996,6 +3996,11 @@ body{background:var(--bg);background-image:none}
     e.target.value='';
   });
   $('qInput').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); doParse(); } });
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Enter'&&e.key!==' ') return;
+    var card=e.target&&e.target.closest&&e.target.closest('.sem-card[role="button"]');
+    if(card){ e.preventDefault(); card.click(); }
+  });
   $('fType').addEventListener('change',applyBirthdayMode);
   $('fBirthType').addEventListener('change',applyBirthdayMode);
   $('famBType').addEventListener('change',famApplyType);
