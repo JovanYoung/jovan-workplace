@@ -557,6 +557,7 @@ body.nav-bottom #bottomTabs{display:none}
 .subject-ai-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--g2);border-radius:12px;margin-bottom:8px;cursor:pointer;background:var(--surface);transition:all .15s;font-size:14px}
 .subject-ai-item:hover{border-color:var(--orange)}
 .subject-ai-item.active{background:var(--orange-l);border-color:var(--orange);color:var(--orange-d);font-weight:500}
+.subject-ai-item .si-branch{font-size:14px;color:var(--orange);flex-shrink:0}
 .subject-ai-item .si-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .subject-ai-item .si-count{font-size:11px;color:var(--g4);flex-shrink:0}
 .subject-ai-item .si-ops{display:none;flex-shrink:0;gap:2px}
@@ -5109,11 +5110,25 @@ textarea.f-input{resize:vertical;min-height:76px}
     window.workplace.convList().then(function(list){
       var box = $('subjectAiList');
       if(!box) return;
-      var html = '<button class="btn btn-dash" id="subjectAiNew"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新建学科会话</button>';
-      if(!(list || []).length) html += '<div class="list-empty" style="font-size:12px">还没有会话</div>';
+      var byParent = {}, roots = [];
       (list || []).forEach(function(c){
+        if(c.parent_conv_id) (byParent[c.parent_conv_id] || (byParent[c.parent_conv_id] = [])).push(c);
+        else roots.push(c);
+      });
+      var tree = [];
+      function visit(c, depth){
+        tree.push({ conv:c, depth:depth });
+        (byParent[c.id] || []).sort(function(a,b){ return (a.created_at || 0) - (b.created_at || 0); }).forEach(function(child){ visit(child, depth + 1); });
+      }
+      roots.sort(function(a,b){ return (b.updated_at || 0) - (a.updated_at || 0); }).forEach(function(c){ visit(c, 0); });
+      var html = '<button class="btn btn-dash" id="subjectAiNew"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新建学科会话</button>';
+      if(!tree.length) html += '<div class="list-empty" style="font-size:12px">还没有会话</div>';
+      tree.forEach(function(node){
+        var c = node.conv;
         var active = subjectAiCurrent === c.id ? ' active' : '';
-        html += '<div class="subject-ai-item' + active + '" data-id="' + esc(c.id) + '">';
+        var lineage = c.parent_conv_id ? '<span class="si-branch" title="从历史节点续写的独立分支">↳</span>' : '';
+        html += '<div class="subject-ai-item' + active + '" data-id="' + esc(c.id) + '" style="margin-left:' + Math.min(node.depth * 14, 56) + 'px">';
+        html += lineage;
         html += '<span class="si-name" title="' + esc(c.title) + '">' + esc(c.title) + '</span>';
         html += '<span class="si-count">' + (c.msg_count || 0) + '</span>';
         html += '<span class="si-ops"><button data-op="rename" title="重命名">✎</button><button data-op="clear" title="清空对话">⌫</button></span>';
@@ -5170,7 +5185,15 @@ textarea.f-input{resize:vertical;min-height:76px}
           else appendSubjectMsg(m.role === 'user' ? 'user' : 'ai', m.content, m.id);
         });
       }
-      setSubjectMeta('');
+      if(r.conv.parent_conv_id){
+        setSubjectMetaText('↳ 独立分支：仅继承分叉节点前的上下文 · ');
+        var meta = $('subjectChatMeta');
+        var back = document.createElement('button');
+        back.className = 'btn btn-sm btn-ghost';
+        back.setAttribute('data-parent-conv', r.conv.parent_conv_id);
+        back.textContent = '回到父线';
+        meta.appendChild(back);
+      } else setSubjectMeta('');
       log.scrollTop = log.scrollHeight;
     });
   }
@@ -5205,7 +5228,17 @@ textarea.f-input{resize:vertical;min-height:76px}
       btn.disabled = false; btn.textContent = '发送';
       subjectAiBusy = false;
       if(r && r.ok){
-        if(aiEl){ aiEl.innerHTML = renderMarkdown(aiEl.textContent || r.content || '（无内容）'); }
+        if(aiEl){
+          aiEl.innerHTML = renderMarkdown(aiEl.textContent || r.content || '（无内容）');
+          if(r.assistant_message && r.assistant_message.id){
+            var fork = document.createElement('button');
+            fork.className = 'btn btn-sm btn-ghost subject-fork';
+            fork.setAttribute('data-fork-message', r.assistant_message.id);
+            fork.textContent = '从此续写';
+            fork.title = '创建独立分支，不会混入旁支上下文';
+            aiEl.appendChild(fork);
+          }
+        }
         setSubjectMeta(r.usage);
         renderSubjectList();
         runMemExtractSubject(subjectAiCurrent);
@@ -5305,6 +5338,8 @@ textarea.f-input{resize:vertical;min-height:76px}
       }).catch(function(){ fork.disabled=false; fork.textContent='从此续写'; toast('创建分支失败'); });
       return;
     }
+    var parent=t.closest?t.closest('[data-parent-conv]'):null;
+    if(parent){ selectSubject(parent.getAttribute('data-parent-conv')); return; }
     var hit = t.closest ? t.closest('.search-hit') : null;
     if(hit){ selectSubject(hit.getAttribute('data-conv')); var r=$('subjectAiSearchResults'); if(r){ r.style.display='none'; r.innerHTML=''; } var si=$('subjectAiSearch'); if(si) si.value=''; return; }
     var item = t.closest ? t.closest('.subject-ai-item') : null;

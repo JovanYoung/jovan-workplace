@@ -22,6 +22,15 @@ let db = null;
 
 function dbPath() { return path.join(data.getDataDir(), 'conversations.db'); }
 
+// Kept for isolated regression scripts. The desktop app keeps its database open
+// for its full lifetime and does not call this during ordinary use.
+function close() {
+  if (db) {
+    db.close();
+    db = null;
+  }
+}
+
 // ---- open + schema ----
 function init() {
   if (db) return db;
@@ -412,9 +421,9 @@ async function sendMessage(id, provider, model, text, thinking, onChunk) {
     thinking: thinking, onChunk: onChunk
   });
 
-  appendMessage(id, 'user', question, { provider: provider, model: model });
-  appendMessage(id, 'assistant', r.content || '', { provider: r.provider || provider, model: r.model || model, usage: r.usage, cost: r.cost });
-  return { content: r.content, usage: r.usage, cost: r.cost };
+  const userMessage = appendMessage(id, 'user', question, { provider: provider, model: model });
+  const assistantMessage = appendMessage(id, 'assistant', r.content || '', { provider: r.provider || provider, model: r.model || model, usage: r.usage, cost: r.cost });
+  return { content: r.content, usage: r.usage, cost: r.cost, user_message: userMessage, assistant_message: assistantMessage };
 }
 
 // ---- history search (FTS5 trigram + LIKE fallback) ----
@@ -442,6 +451,7 @@ function search(q) {
 
 module.exports = {
   init,
+  close,
   createConversation,
   createBranch,
   listConversations,

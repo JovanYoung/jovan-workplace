@@ -303,7 +303,7 @@ function registerIpc() {
           { role: 'user', content: String(text || '').slice(0, 3000) }
         ]
       });
-      return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
+      return { ok: true, content: r.content, usage: r.usage, cost: r.cost, user_message: r.user_message, assistant_message: r.assistant_message };
     } catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
   ipcMain.handle('ai:translate-to-english', async (e, provider, model, text) => {
