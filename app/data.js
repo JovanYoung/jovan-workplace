@@ -117,7 +117,7 @@ function findRow(id) {
 
 // Normalize a smart-page-style property object {text|select|date|...} into a plain value.
 function flat(v) {
-  if (v && typeof v === 'object') return v.text !== undefined ? v.text : (v.select !== undefined ? v.select : (v.date !== undefined ? v.date : ''));
+  if (v && typeof v === 'object') return v.text !== undefined ? v.text : (v.select !== undefined ? v.select : (v.date !== undefined ? v.date : v));
   return v;
 }
 

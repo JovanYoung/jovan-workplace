@@ -68,6 +68,37 @@ function normalizeDate(v) {
 
 // ---- read helpers ----
 function isNotDeleted(r) { return !r['删除时间']; }
+function recurrenceOf(r) {
+  const v = r && r['周期'];
+  if (!v) return null;
+  if (typeof v === 'object') return v;
+  try { return JSON.parse(v); } catch (e) { return null; }
+}
+function occursOn(r, date) {
+  const target = String(date || '').slice(0, 10);
+  const start = String((r && r['日期']) || '').slice(0, 10);
+  if (!target || !start) return false;
+  const rule = recurrenceOf(r);
+  if (!rule) return start === target;
+  if (target < start || (rule.until && target > String(rule.until).slice(0, 10))) return false;
+  const d = new Date(target + 'T00:00:00'), s = new Date(start + 'T00:00:00');
+  if (rule.freq === 'daily') return true;
+  if (rule.freq === 'weekly') return d.getDay() === Number(rule.weekday);
+  if (rule.freq === 'monthly') return d.getDate() === s.getDate();
+  return false;
+}
+function recurrenceFromText(text, startDate) {
+  const s = String(text || '');
+  const start = String(startDate || normalizeDate(s) || todayStr()).slice(0, 10);
+  const untilDate = new Date(start + 'T00:00:00');
+  untilDate.setFullYear(untilDate.getFullYear() + 1);
+  const until = untilDate.getFullYear() + '-' + pad(untilDate.getMonth() + 1) + '-' + pad(untilDate.getDate());
+  if (/每天|每日/.test(s)) return { freq: 'daily', until: until };
+  const m = s.match(/每(?:周|星期)[周星期]?([日天一二三四五六])/);
+  if (m) return { freq: 'weekly', weekday: WEEK[m[1]], until: until };
+  if (/每月/.test(s)) return { freq: 'monthly', until: until };
+  return null;
+}
 function rowsByType(type) {
   return data.rows().filter(function (r) { return isNotDeleted(r) && (r['类型'] || '') === type; });
 }
@@ -80,8 +111,8 @@ function queryToday() {
   const today = todayStr();
   const rs = data.rows().filter(isNotDeleted);
   const tasks = rs.filter(function (r) { return (r['类型'] === '任务' || r['类型'] === '日程') && r['状态'] !== '已完成'; });
-  const todayItems = tasks.filter(function (r) { return (r['日期'] || '').slice(0, 10) === today; });
-  const overdue = tasks.filter(function (r) { const d = (r['日期'] || '').slice(0, 10); return d && d < today; });
+  const todayItems = tasks.filter(function (r) { return occursOn(r, today); });
+  const overdue = tasks.filter(function (r) { const d = (r['日期'] || '').slice(0, 10); return !recurrenceOf(r) && d && d < today; });
   const birthdays = data.computeBirthdays().filter(function (b) {
     return b.dates.some(function (d) { return d.daysLeft >= 0 && d.daysLeft <= 7; });
   });
@@ -96,7 +127,7 @@ function querySchedules(args) {
   const kw = (args && args.keyword) || (args && args.关键字) || '';
   const date = (args && args.date) || (args && args.日期) || '';
   let rs = rowsByType('日程').concat(rowsByType('任务'));
-  if (date) { const d = normalizeDate(date); if (d) rs = rs.filter(function (r) { return (r['日期'] || '').slice(0, 10) === d; }); }
+  if (date) { const d = normalizeDate(date); if (d) rs = rs.filter(function (r) { return occursOn(r, d); }); }
   if (kw) rs = rs.filter(function (r) { return (r['标题'] + ' ' + (r['详情'] || '')).indexOf(kw) >= 0; });
   rs.sort(function (a, b) { return (a['日期'] || '').localeCompare(b['日期'] || ''); });
   return { 数量: rs.length, 结果: rs.slice(0, 30).map(rowBrief) };
@@ -139,6 +170,18 @@ function createSchedule(args, onEvent) {
   const pri = normPriority(args && (args.优先级 || args.priority));
   if (pri) props.优先级 = pri;
   if (date) props.日期 = date;
+  const recurrence = args && (args.周期 || args.recurrence);
+  if (recurrence && typeof recurrence === 'object' && ['daily', 'weekly', 'monthly'].indexOf(recurrence.freq) >= 0) {
+    props.周期 = recurrence;
+    if (!props.周期.until && date) {
+      const until = new Date(date + 'T00:00:00');
+      until.setFullYear(until.getFullYear() + 1);
+      props.周期.until = until.getFullYear() + '-' + pad(until.getMonth() + 1) + '-' + pad(until.getDate());
+    }
+  } else {
+    const inferred = recurrenceFromText((args && (args.详情 || args.detail || args.标题 || args.title)) || '', date);
+    if (inferred) props.周期 = inferred;
+  }
   const extra = [];
   if (args && (args.时间 || args.time)) extra.push('时间：' + (args.时间 || args.time));
   if (args && (args.地点 || args.location)) extra.push('地点：' + (args.地点 || args.location));
@@ -234,7 +277,7 @@ const TOOL_DEFS = [
   fn('query_study', '查询学习记录（学期/科目/备考）。参数 keyword 为关键词。当用户问"我的学习进度/有什么科目/备考计划"时使用。',
     { keyword: { type: 'string', description: '关键词' } }),
   fn('create_schedule', '新建日程草稿（需用户确认后才真正写入）。当用户在对话中表达"约人/开会/有活动/某天要做什么"等日程意图时调用。',
-    { 标题: { type: 'string', description: '日程标题' }, 日期: { type: 'string', description: 'YYYY-MM-DD 或自然语言' }, 时间: { type: 'string', description: '时刻，如 14:00' }, 地点: { type: 'string' }, 优先级: { type: 'string', description: '紧急且重要/重要但不紧急/紧急但不重要/不重要也不紧急' }, 详情: { type: 'string' } },
+    { 标题: { type: 'string', description: '日程标题' }, 日期: { type: 'string', description: 'YYYY-MM-DD 或自然语言' }, 时间: { type: 'string', description: '时刻，如 14:00' }, 地点: { type: 'string' }, 优先级: { type: 'string', description: '紧急且重要/重要但不紧急/紧急但不重要/不重要也不紧急' }, 周期: { type: 'object', description: '重复规则，可选：{freq: daily|weekly|monthly, weekday: 0-6(仅每周), until: YYYY-MM-DD}；只存规则，默认一年截止' }, 详情: { type: 'string' } },
     ['标题']),
   fn('create_task', '新建任务草稿（需用户确认）。当用户表达"要交作业/要完成某事/有 deadline"等任务意图时调用。',
     { 标题: { type: 'string', description: '任务标题' }, 优先级: { type: 'string' }, 日期: { type: 'string', description: '截止日期，YYYY-MM-DD 或自然语言' }, 标签: { type: 'string' }, 详情: { type: 'string' } },
@@ -273,6 +316,8 @@ module.exports = {
   TOOL_DEFS,
   executeTool,
   normalizeDate,
+  occursOn,
+  recurrenceFromText,
   normPriority,
   normType,
   PRIORITIES,

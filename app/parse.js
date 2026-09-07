@@ -54,10 +54,10 @@ function todayCN() {
   return '今天是' + d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日（周' + week[d.getDay()] + '）。';
 }
 const PARSE_SCHEMA_HINT =
-  '只输出一个 JSON 对象，字段：{类型, 标题, 日期, 时间, 地点, 优先级, 标签, 详情}。' +
+  '只输出一个 JSON 对象，字段：{类型, 标题, 日期, 时间, 地点, 优先级, 标签, 周期, 详情}。' +
   '类型 ∈ [日程, 任务, 备忘, 亲友, 学习, 备考]；' +
   '优先级 ∈ [紧急且重要, 重要但不紧急, 紧急但不重要, 不重要也不紧急]，可留空；' +
-  '日期用 YYYY-MM-DD，相对日期（明天/周五/下周X）请按今天换算成具体日期，无则空字符串；时间用 HH:MM，无则空字符串。';
+  '日期用 YYYY-MM-DD，相对日期（明天/周五/下周X）请按今天换算成具体日期，无则空字符串；时间用 HH:MM，无则空字符串；周期无则 null，有则为 {freq: daily|weekly|monthly, weekday: 0-6(仅每周), until: YYYY-MM-DD}，默认一年截止。';
 
 async function parse(text, pro) {
   const def = pickDefaultModel(!!pro);
@@ -84,6 +84,7 @@ async function parse(text, pro) {
   // boundaries). If the raw text carries a relative date, trust normalizeDate
   // over the model's own conversion, which can drift at month ends.
   const date = tools.normalizeDate(text) || tools.normalizeDate(p.日期) || '';
+  const recurrence = tools.recurrenceFromText(text, date);
   let confidence = 0.9;
   if (!tools.normType(p.类型)) confidence = 0.55;         // model guessed type
   if (pri && !tools.normPriority(p.优先级)) confidence = 0.6;
@@ -96,6 +97,7 @@ async function parse(text, pro) {
     地点: p.地点 || '',
     优先级: pri,
     标签: p.标签 || '',
+    周期: recurrence,
     详情: p.详情 || String(text || '').trim()
   };
   return { ok: true, parsed: parsed, confidence: confidence };
@@ -147,6 +149,9 @@ async function detect(messages) {
   if (pri) props.优先级 = pri;
   const date = tools.normalizeDate(d.日期);
   if (date) props.日期 = date;
+  const latestUser = (messages || []).slice().reverse().find(function (m) { return m && m.role === 'user'; });
+  const recurrence = tools.recurrenceFromText(latestUser && latestUser.content, props.日期);
+  if (recurrence) props.周期 = recurrence;
 
   let type = null;
   if (intent === '日程') { type = '日程'; }

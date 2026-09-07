@@ -367,6 +367,11 @@ body.nav-bottom #bottomTabs{display:none}
 .c-value{font-weight:500;word-break:break-all}
 .confirm-orig{margin-top:12px;font-size:12px;color:var(--g4);background:var(--orange-l);border-radius:8px;padding:8px 12px}
 .speech-hint{font-size:11px;color:var(--g4);margin-top:6px}
+.caption-panel{margin-top:10px;border:1px solid rgba(92,136,184,.34);border-radius:12px;background:#F7FAFC;padding:10px 12px;line-height:1.5}
+.caption-status{font-size:11px;color:var(--g4);margin-bottom:6px}
+.caption-cn,.caption-en{font-size:13px;word-break:break-word;min-height:20px}
+.caption-cn{color:var(--ink)} .caption-en{color:#38617F;margin-top:5px}
+.caption-en.pending{color:var(--g4);font-style:italic}
 .bm-row{display:flex;flex-direction:column;gap:8px;width:100%}
 .bm-toggle{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border:1px solid var(--g2);border-radius:var(--control-radius);background:var(--surface);color:var(--g6);font-size:13px;transition:all 160ms ease;width:100%;font-family:inherit}
 .bm-toggle:hover{border-color:var(--orange);color:var(--orange-d)}
@@ -934,9 +939,14 @@ textarea.f-input{resize:vertical;min-height:76px}
             <button class="chip" data-f="课件">📊 课件</button>
           </div>
           <div class="learn-tools" id="notesTools">
-            <button class="btn btn-sm btn-ghost" id="noteRec">🎙 录音笔记（实时转文字）</button>
+            <button class="btn btn-sm btn-ghost" id="noteRec">🎙 开始课堂双语字幕</button>
             <button class="btn btn-sm btn-ghost" id="noteImport">导入文本文件</button>
             <span class="learn-rec-text" id="noteRecText" style="display:none"></span>
+          </div>
+          <div class="caption-panel" id="noteCaptionPanel" style="display:none" aria-live="polite">
+            <div class="caption-status" id="noteCaptionStatus">正在连接麦克风…</div>
+            <div class="caption-cn" id="noteCaptionCn"></div>
+            <div class="caption-en pending" id="noteCaptionEn">English subtitle is waiting for a configured translation model.</div>
           </div>
           <input type="file" id="noteFile" accept=".txt,.md,.markdown,.text" style="display:none">
           <div id="noteList"></div>
@@ -1089,6 +1099,15 @@ textarea.f-input{resize:vertical;min-height:76px}
       <div class="f-item">
         <label class="f-label">日期</label>
         <input class="f-input" type="date" id="fDate" data-field="date">
+      </div>
+      <div class="f-item" id="fRecurrenceItem">
+        <label class="f-label">重复</label>
+        <select class="f-input" id="fRecurrence" data-field="recurrence">
+          <option value="">不重复</option>
+          <option value="daily">每天（默认一年）</option>
+          <option value="weekly">每周（默认一年）</option>
+          <option value="monthly">每月（默认一年）</option>
+        </select>
       </div>
       <div class="f-item" id="fStItem">
         <label class="f-label">状态</label>
@@ -1778,6 +1797,22 @@ textarea.f-input{resize:vertical;min-height:76px}
   function typeOf(r){ return r['类型']||''; }
   function statusOf(r){ return r['状态']||'待处理'; }
   function dateOf(r){ return fmtDate(r['日期']); }
+  function recurrenceOf(r){
+    var v=r&&r['周期']; if(!v) return null;
+    if(typeof v==='object') return v;
+    try{return JSON.parse(v);}catch(e){return null;}
+  }
+  function occursOn(r,ds){
+    var start=dateOf(r), rule=recurrenceOf(r);
+    if(!start||!ds) return false;
+    if(!rule) return start===ds;
+    if(ds<start||(rule.until&&ds>String(rule.until).slice(0,10))) return false;
+    var d=new Date(ds+'T00:00:00'), s=new Date(start+'T00:00:00');
+    if(rule.freq==='daily') return true;
+    if(rule.freq==='weekly') return d.getDay()===Number(rule.weekday);
+    if(rule.freq==='monthly') return d.getDate()===s.getDate();
+    return false;
+  }
   function isDone(r){ return statusOf(r)==='已完成'; }
   function isExample(r){ var d=r['详情']||''; return d.indexOf('【示例】')===0; }
   function mondayStr(){ var d=new Date(); var w=(d.getDay()+6)%7; d.setDate(d.getDate()-w); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
@@ -1816,9 +1851,13 @@ textarea.f-input{resize:vertical;min-height:76px}
       if(isDone(r)) return;
       var tp=typeOf(r), d=dateOf(r);
       if(tp==='备忘'||!d) return;
-      if(d<t){ over.push(r); }
-      else if(d===t){ today.push(r); }
-      else if(d<=soon){ soons.push(r); }
+      if(occursOn(r,t)){ today.push(r); }
+      else if(!recurrenceOf(r)&&d<t){ over.push(r); }
+      else if(recurrenceOf(r)){
+        for(var sd=addDays(t,1);sd<=soon;sd=addDays(sd,1)){
+          if(occursOn(r,sd)){ var copy={}; for(var ck in r) copy[ck]=r[ck]; copy._occurrenceDate=sd; soons.push(copy); break; }
+        }
+      }else if(d<=soon){ soons.push(r); }
     });
     over.sort(sortByQuad);
     soons.sort(sortByQuad);
@@ -1860,7 +1899,7 @@ textarea.f-input{resize:vertical;min-height:76px}
       var pr=r['优先级']||'';
       if(pr&&PRI_DOT[pr]) html+='<span class="quad-tag" style="background:'+PRI_DOT[pr]+'">'+esc(pr)+'</span>';
       html+='<span class="t">'+esc(r['标题'])+'</span>';
-      html+='<span class="d">'+fmtDateCN(r['日期'])+'</span>';
+      html+='<span class="d">'+fmtDateCN(r._occurrenceDate||r['日期'])+'</span>';
       html+='<button class="btn btn-sm" style="background:#F97316;color:#fff;flex-shrink:0" data-act="done" data-id="'+esc(id)+'">完成</button>';
       html+='</div>';
       return html;
@@ -1899,8 +1938,14 @@ textarea.f-input{resize:vertical;min-height:76px}
     else renderSchedList();
   }
   function renderSchedList(){
-    var list=ALL_ROWS.filter(function(r){ return typeOf(r)==='日程'||typeOf(r)==='任务'; });
-    list.sort(function(a,b){ var x=dateOf(a),y=dateOf(b); if(!x)return 1; if(!y)return -1; return x<y?-1:1; });
+    var list=[], from=todayStr(), until=addDays(from,90);
+    ALL_ROWS.filter(function(r){ return typeOf(r)==='日程'||typeOf(r)==='任务'; }).forEach(function(r){
+      if(!recurrenceOf(r)){ list.push(r); return; }
+      for(var ds=from;ds<=until;ds=addDays(ds,1)) if(occursOn(r,ds)){
+        var copy={}; for(var k in r) copy[k]=r[k]; copy._occurrenceDate=ds; list.push(copy);
+      }
+    });
+    list.sort(function(a,b){ var x=a._occurrenceDate||dateOf(a),y=b._occurrenceDate||dateOf(b); if(!x)return 1; if(!y)return -1; return x<y?-1:1; });
     $('schedList').innerHTML=renderRows(list);
   }
   function renderCal(){
@@ -1911,8 +1956,12 @@ textarea.f-input{resize:vertical;min-height:76px}
     var map={};
     ALL_ROWS.forEach(function(r){
       if(typeOf(r)!=='日程'&&typeOf(r)!=='任务') return;
-      var d=dateOf(r); if(!d) return;
-      (map[d]=map[d]||[]).push(r);
+      var start=new Date(calYear,calMonth,1-lead);
+      for(var ri=0;ri<42;ri++){
+        var rd=new Date(start.getFullYear(),start.getMonth(),start.getDate()+ri);
+        var rds=rd.getFullYear()+'-'+pad(rd.getMonth()+1)+'-'+pad(rd.getDate());
+        if(occursOn(r,rds)) (map[rds]=map[rds]||[]).push(r);
+      }
     });
     var year=calYear;
     var bmap=bdayByYear[year];
@@ -1993,7 +2042,7 @@ textarea.f-input{resize:vertical;min-height:76px}
   }
   function renderDayView(){
     if(!dayDate) dayDate=todayStr();
-    var rows=ALL_ROWS.filter(function(r){ return (typeOf(r)==='日程'||typeOf(r)==='任务')&&dateOf(r)===dayDate; });
+    var rows=ALL_ROWS.filter(function(r){ return (typeOf(r)==='日程'||typeOf(r)==='任务')&&occursOn(r,dayDate); });
     var html='<div class="day-nav">';
     html+='<button class="cal-nav" data-act="day-nav" data-dir="-1" title="前一天"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>';
     html+='<span class="day-title">'+fmtDateCN(dayDate)+'（'+weekName(dayDate)+'）</span>';
@@ -2141,7 +2190,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     for(var i=0;i<7;i++){
       var dd=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i);
       var ds=dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate());
-      var items=ALL_ROWS.filter(function(r){ return (typeOf(r)==='日程'||typeOf(r)==='任务')&&dateOf(r)===ds; });
+      var items=ALL_ROWS.filter(function(r){ return (typeOf(r)==='日程'||typeOf(r)==='任务')&&occursOn(r,ds); });
       items.sort(sortByQuad);
       var isToday=ds===todayStr();
       var isSel=ds===dayDate;
@@ -2544,27 +2593,80 @@ textarea.f-input{resize:vertical;min-height:76px}
     $('learnName').focus();
   }
   function showResult(title,text){ $('resultTitle').textContent=title; $('resultBody').textContent=text; $('resultMask').className='modal-mask show'; }
-  var recogNote=null, noteRecOn=false, noteRecText='';
+  var recogNote=null, noteRecOn=false, noteRecText='', noteRecEnglish='', noteRecInterim='', noteTranslateQueue=[], noteTranslateBusy=false, noteManualStop=false;
+  function noteCaption(status,cn,en,pending){
+    var panel=$('noteCaptionPanel'); if(panel) panel.style.display='';
+    if($('noteCaptionStatus')) $('noteCaptionStatus').textContent=status||'';
+    if($('noteCaptionCn')) $('noteCaptionCn').textContent=cn||'';
+    if($('noteCaptionEn')){ $('noteCaptionEn').textContent=en||''; $('noteCaptionEn').className='caption-en'+(pending?' pending':''); }
+  }
+  function noteModel(){ var sel=$('chatModelSel'), val=sel&&sel.value; return val&&val.indexOf('|')>0?val.split('|'):null; }
+  function drainNoteTranslation(){
+    if(noteTranslateBusy||!noteTranslateQueue.length) return;
+    var model=noteModel();
+    if(!model){ noteCaption('中文实时字幕 · 未配置英文翻译模型',noteRecInterim||noteRecText,'English subtitle requires an AI model in Settings.',true); return; }
+    noteTranslateBusy=true;
+    var chunk=noteTranslateQueue.shift();
+    noteCaption('中文实时字幕 · 正在翻译英文',noteRecInterim||chunk,'Translating…',true);
+    window.workplace.aiTranslateToEnglish(model[0],model[1],chunk).then(function(j){
+      if(j&&j.ok&&j.content){ noteRecEnglish+=(noteRecEnglish?'\n':'')+String(j.content).trim(); noteCaption('中文实时字幕 · 英文已更新',noteRecInterim||chunk,String(j.content).trim(),false); }
+      else noteCaption('中文实时字幕 · 英文翻译失败（中文仍会保存）',noteRecInterim||chunk,'Translation unavailable.',true);
+    }).catch(function(){ noteCaption('中文实时字幕 · 英文翻译失败（中文仍会保存）',noteRecInterim||chunk,'Translation unavailable.',true); }).then(function(){ noteTranslateBusy=false; drainNoteTranslation(); });
+  }
+  function archiveCaptionNote(){
+    if(!noteRecText.trim()) { $('noteCaptionPanel').style.display='none'; return; }
+    var english=noteRecEnglish.trim()||'【未生成英文：未配置或未连接翻译模型】';
+    var body='【课堂实时双语字幕】\n\n中文原文\n'+noteRecText.trim()+'\n\nEnglish translation\n'+english;
+    var props={'标题':{text:'课堂双语笔记 '+todayStr()},'类型':{select:'学习'},'标签':{text:'笔记'},'状态':{select:'待处理'},'日期':{date:todayStr()},'详情':{text:body}};
+    var sem=(learnLevel.sem&&learnLevel.sem!=='未分类')?learnLevel.sem:'';
+    var sub=(learnLevel.sub&&learnLevel.sub!=='未分类')?learnLevel.sub:'';
+    if(sem) props['学期']={text:sem}; if(sub) props['科目']={text:sub};
+    wAdd(props).then(function(){ toast('课堂双语笔记已自动存入当前学科'); renderLearn(); }).catch(function(){ toast('字幕已停止，但笔记存档失败'); });
+  }
+  function finishCaptionArchive(attempt){
+    attempt=attempt||0;
+    var hasModel=!!noteModel();
+    if(hasModel&&noteTranslateQueue.length) drainNoteTranslation();
+    if(hasModel&&(noteTranslateBusy||noteTranslateQueue.length)&&attempt<40){
+      noteCaption('课堂已结束，正在完成英文翻译后归档…',noteRecText,noteRecEnglish||'Finishing translation…',true);
+      setTimeout(function(){ finishCaptionArchive(attempt+1); },250);
+      return;
+    }
+    archiveCaptionNote();
+  }
   function startNoteRec(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){ toast('当前浏览器不支持语音，请用 Chrome / Edge'); return; }
-    if(noteRecOn){ try{ recogNote.stop(); }catch(e){} return; }
+    if(noteRecOn){ noteManualStop=true; try{ recogNote.stop(); }catch(e){} return; }
     if(!recogNote){
       recogNote=new SR();
       recogNote.lang='zh-CN';
       recogNote.interimResults=true;
       recogNote.continuous=true;
-      recogNote.onresult=function(e){ var t=''; for(var i=0;i<e.results.length;i++) t+=e.results[i][0].transcript; noteRecText=t; var el=$('noteRecText'); el.textContent='正在转写：'+t.slice(0,40)+'…'; el.style.display=''; };
-      recogNote.onend=function(){
-        noteRecOn=false; $('noteRec').textContent='🎙 录音笔记（实时转文字）';
-        var el=$('noteRecText'); el.style.display='none';
-        if(noteRecText&&noteRecText.trim()) openLearnModal('录音笔记 '+todayStr(),noteRecText,'笔记');
+      recogNote.onresult=function(e){
+        var interim='';
+        for(var i=e.resultIndex;i<e.results.length;i++){
+          var text=e.results[i][0].transcript;
+          if(e.results[i].isFinal){ noteRecText+=(noteRecText?'\n':'')+text; noteTranslateQueue.push(text); }
+          else interim+=text;
+        }
+        noteRecInterim=interim;
+        var latest=interim||noteRecText.split('\n').slice(-1)[0]||'';
+        noteCaption(interim?'中文实时字幕 · 识别中':'中文实时字幕 · 等待下一句',latest,noteRecEnglish.split('\n').slice(-1)[0]||'Waiting for a complete sentence…',!!interim);
+        var el=$('noteRecText'); el.textContent='已记录 '+noteRecText.replace(/\n/g,'').length+' 字'; el.style.display='';
+        drainNoteTranslation();
       };
-      recogNote.onerror=function(){ noteRecOn=false; $('noteRec').textContent='🎙 录音笔记（实时转文字）'; toast('录音失败，请重试'); };
+      recogNote.onend=function(){
+        noteRecOn=false; $('noteRec').textContent='🎙 开始课堂双语字幕';
+        var el=$('noteRecText'); el.style.display='none';
+        if(noteManualStop){ noteCaption('课堂已结束，正在归档到当前学科…',noteRecText,noteRecEnglish||'English translation may still be finishing.',!noteRecEnglish); finishCaptionArchive(); }
+      };
+      recogNote.onerror=function(){ noteRecOn=false; $('noteRec').textContent='🎙 开始课堂双语字幕'; toast('录音失败，请重试'); };
     }
-    noteRecOn=true; noteRecText='';
-    $('noteRec').textContent='■ 停止并保存';
-    try{ recogNote.start(); }catch(e){ noteRecOn=false; }
+    noteRecOn=true; noteManualStop=false; noteRecText=''; noteRecEnglish=''; noteRecInterim=''; noteTranslateQueue=[]; noteTranslateBusy=false;
+    $('noteRec').textContent='■ 停止课堂并自动归档';
+    noteCaption('正在连接麦克风…','', 'English subtitle will appear after a complete Chinese sentence.',true);
+    try{ recogNote.start(); }catch(e){ noteRecOn=false; $('noteRec').textContent='🎙 开始课堂双语字幕'; toast('语音启动失败，请检查麦克风权限'); }
   }
   function slideTranslate(id){
     var r=null; ALL_ROWS.forEach(function(x){ if(x._id===id) r=x; });
@@ -2648,7 +2750,8 @@ textarea.f-input{resize:vertical;min-height:76px}
     list.forEach(function(r){
       var tp=typeOf(r)||'任务';
       var done=isDone(r);
-      var over=!done&&dateOf(r)&&dateOf(r)<todayStr();
+      var rowDate=r._occurrenceDate||dateOf(r);
+      var over=!done&&!recurrenceOf(r)&&rowDate&&rowDate<todayStr();
       var rid=esc(r._id||'');
       if(isTodo){
         html+='<div class="row'+(done?' done':'')+'" data-record-id="'+rid+'">';
@@ -2663,9 +2766,12 @@ textarea.f-input{resize:vertical;min-height:76px}
         html+='<div class="row'+(done?' done':'')+'" data-record-id="'+rid+'">';
         html+='<div class="row-main">'+rowBody(r,tp,done,over,rid)+'</div>';
         html+='<div class="row-actions">';
-        html+='<button class="icon-btn" data-act="edit" data-id="'+rid+'" title="编辑"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>';
-        html+='<button class="icon-btn" data-act="done" data-id="'+rid+'" title="完成"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>';
-        html+='<button class="icon-btn del" data-act="del" data-id="'+rid+'" title="删除"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>';
+        var isOccurrence=!!r._occurrenceDate;
+        html+='<button class="icon-btn" data-act="edit" data-id="'+rid+'" title="'+(isOccurrence?'编辑重复规则':'编辑')+'"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>';
+        if(!isOccurrence){
+          html+='<button class="icon-btn" data-act="done" data-id="'+rid+'" title="完成"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>';
+          html+='<button class="icon-btn del" data-act="del" data-id="'+rid+'" title="删除"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"/></svg></button>';
+        }
         html+='</div></div>';
       }
     });
@@ -2679,7 +2785,8 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(r['优先级']) html+='<button class="pri-chip" data-act="pri" data-id="'+rid+'" title="点击修改优先级" style="color:'+(PRI_DOT[r['优先级']]||'#9CA3AF')+';border-color:'+(PRI_DOT[r['优先级']]||'#9CA3AF')+'">'+esc(r['优先级'])+'</button>';
     else html+='<button class="pri-chip" data-act="pri" data-id="'+rid+'" title="点击设置优先级" style="color:#9CA3AF;border-color:#E5E7EB">未设置</button>';
     html+='<span class="st-badge st-'+esc(statusOf(r))+'">'+esc(statusOf(r))+'</span>';
-    if(r['日期']) html+='<span class="mdate'+(over?' over':'')+'">'+fmtDateCN(r['日期'])+'</span>';
+    if(r['日期']) html+='<span class="mdate'+(over?' over':'')+'">'+fmtDateCN(r._occurrenceDate||r['日期'])+'</span>';
+    var repeat=recurrenceOf(r); if(repeat) html+='<span class="tag">'+(repeat.freq==='daily'?'每天':(repeat.freq==='weekly'?'每周':'每月'))+'</span>';
     if(done&&r['完成日期']) html+='<span class="mdate">完成 '+fmtDateCN(r['完成日期'])+'</span>';
     html+='</div>';
     if(r['详情']) html+='<div class="row-detail">'+esc(r['详情'])+'</div>';
@@ -2760,6 +2867,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     show('fPriItem',!bd&&!fam);
     show('fStItem',!bd&&!fam);
     show('fTagItem',fam||!bd);
+    show('fRecurrenceItem',!bd&&!fam);
     var dateItem=$('fDate').parentNode; if(dateItem) dateItem.style.display=(bd||fam)?'none':'';
     if(bd) fillLunarSelects();
   }
@@ -2793,6 +2901,8 @@ textarea.f-input{resize:vertical;min-height:76px}
     $('fTag').value=r['标签']||'';
     $('fPlace').value=r['地点']||'';
     $('fDate').value=dateOf(r);
+    var rule=recurrenceOf(r);
+    $('fRecurrence').value=rule&&rule.freq?rule.freq:'';
     setSelectVal('fType',r['类型']||'');
     setSelectVal('fPriority',r['优先级']||'');
     setSelectVal('fStatus',r['状态']||'');
@@ -2924,6 +3034,15 @@ textarea.f-input{resize:vertical;min-height:76px}
     if($('fTag').value.trim()) properties['标签']={text:$('fTag').value.trim()};
     if($('fPlace').value.trim()) properties['地点']={text:$('fPlace').value.trim()};
     if($('fDate').value) properties['日期']={date:$('fDate').value};
+    var recurrence=$('fRecurrence').value;
+    if(recurrence){
+      var until=new Date(($('fDate').value||todayStr())+'T00:00:00');
+      until.setFullYear(until.getFullYear()+1);
+      var untilText=until.getFullYear()+'-'+pad(until.getMonth()+1)+'-'+pad(until.getDate());
+      var rule={freq:recurrence,until:untilText};
+      if(recurrence==='weekly') rule.weekday=new Date(($('fDate').value||todayStr())+'T00:00:00').getDay();
+      properties['周期']=rule;
+    }else if(EDIT_TARGET) properties['周期']={text:''};
     if($('fDetail').value.trim()) properties['详情']={text:$('fDetail').value.trim()};
 
     btn.disabled=true; btn.textContent='保存中…';
@@ -2939,6 +3058,7 @@ textarea.f-input{resize:vertical;min-height:76px}
   }
   function resetForm(){
     $('fTitle').value=''; $('fDetail').value=''; $('fTag').value=''; $('fPlace').value='';
+    $('fRecurrence').value='';
     $('fType').value=''; $('fPriority').value=''; $('fStatus').value='';
     $('fDate').value=todayStr();
   }
@@ -3035,7 +3155,7 @@ textarea.f-input{resize:vertical;min-height:76px}
   }
   function parseIntent(raw){
     var t=(raw||'').replace(/[，。！？、\s]+/g,' ');
-    var out={类型:'任务',标题:null,日期:null,优先级:null,标签:null,状态:null,详情:(raw||'').trim()};
+    var out={类型:'任务',标题:null,日期:null,优先级:null,标签:null,状态:null,周期:null,详情:(raw||'').trim()};
     var dictHit=dictLookup(raw);
     if(dictHit){
       if(dictHit.类型) out.类型=dictHit.类型;
@@ -3072,6 +3192,15 @@ textarea.f-input{resize:vertical;min-height:76px}
       for(var p=0;p<priMap.length;p++){ if(t.indexOf(priMap[p][0])>=0){ out.优先级=priMap[p][1]; break; } }
     }
     out.日期=parseDateCN(t);
+    var repeatStart=out.日期||todayStr();
+    var repeatUntil=new Date(repeatStart+'T00:00:00'); repeatUntil.setFullYear(repeatUntil.getFullYear()+1);
+    var repeatUntilText=repeatUntil.getFullYear()+'-'+pad(repeatUntil.getMonth()+1)+'-'+pad(repeatUntil.getDate());
+    if(/每天|每日/.test(t)) out.周期={freq:'daily',until:repeatUntilText};
+    else {
+      var weekly=t.match(/每(?:周|星期)[周星期]?([日天一二三四五六])/);
+      if(weekly){ var weekMap={'日':0,'天':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6}; out.周期={freq:'weekly',weekday:weekMap[weekly[1]],until:repeatUntilText}; }
+      else if(/每月/.test(t)) out.周期={freq:'monthly',until:repeatUntilText};
+    }
     if(t.indexOf('做完了')>=0||t.indexOf('完成了')>=0||t.indexOf('已完成')>=0) out.状态='已完成';
     else if(t.indexOf('进行中')>=0||t.indexOf('正在')>=0) out.状态='进行中';
     out.标题=cleanTitle(t,out);
@@ -3155,6 +3284,10 @@ textarea.f-input{resize:vertical;min-height:76px}
     ['待处理','进行中','已完成'].forEach(function(st){ html+='<option value="'+st+'"'+(p.状态===st?' selected':'')+'>'+st+'</option>'; });
     html+='</select></div>';
     html+='<div class="f-item"><label class="f-label">日期</label><input class="f-input" type="date" id="cfDate" value="'+(p.日期||'')+'"></div>';
+    var parsedRule=p.周期||null;
+    html+='<div class="f-item"><label class="f-label">重复</label><select class="f-input" id="cfRecurrence"><option value="">不重复</option>';
+    ['daily','weekly','monthly'].forEach(function(freq){ var label=freq==='daily'?'每天':(freq==='weekly'?'每周':'每月'); html+='<option value="'+freq+'"'+(parsedRule&&parsedRule.freq===freq?' selected':'')+'>'+label+'（默认一年）</option>'; });
+    html+='</select></div>';
     html+='<div class="f-item"><label class="f-label">标签</label><input class="f-input" id="cfTag" value="'+esc(p.标签||'')+'" placeholder="雅思 / 会议 / 家人…"></div>';
     html+='<div class="f-item full"><label class="f-label">详情（原话）</label><textarea class="f-input" id="cfDetail" style="min-height:64px">'+esc(p.详情||'')+'</textarea></div>';
     var aiBtn=$('aiDeepBtn');
@@ -3208,7 +3341,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     var title=cf('cfTitle').trim();
     if(!title){ toast('请填写标题'); if($('cfTitle')) $('cfTitle').focus(); return; }
     var typeText=cf('cfType')||'任务';
-    var pri=cf('cfPri'), st=cf('cfStatus'), tag=cf('cfTag').trim(), date=cf('cfDate'), det=cf('cfDetail').trim();
+    var pri=cf('cfPri'), st=cf('cfStatus'), tag=cf('cfTag').trim(), date=cf('cfDate'), det=cf('cfDetail').trim(), recurrence=cf('cfRecurrence');
     var properties={};
     properties['标题']={text:title};
     properties['类型']={select:typeText};
@@ -3216,6 +3349,14 @@ textarea.f-input{resize:vertical;min-height:76px}
     properties['状态']={select:st||'待处理'};
     if(tag) properties['标签']={text:tag};
     if(date) properties['日期']={date:date};
+    if(recurrence){
+      var until=new Date((date||todayStr())+'T00:00:00');
+      until.setFullYear(until.getFullYear()+1);
+      var untilText=until.getFullYear()+'-'+pad(until.getMonth()+1)+'-'+pad(until.getDate());
+      var rule={freq:recurrence,until:untilText};
+      if(recurrence==='weekly') rule.weekday=new Date((date||todayStr())+'T00:00:00').getDay();
+      properties['周期']=rule;
+    }
     if(det) properties['详情']={text:det};
     learnFromEdit(CONFIRM_RAW,{类型:typeText,优先级:pri,标签:tag});
     var btn=$('confirmOk');
@@ -3547,7 +3688,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(cacheTimer) clearTimeout(cacheTimer);
     cacheTimer=setTimeout(function(){
       try{
-        var v={t:$('fTitle').value,d:$('fDetail').value,tag:$('fTag').value,pl:$('fPlace').value,dt:$('fDate').value,ty:$('fType').value,pr:$('fPriority').value,st:$('fStatus').value};
+        var v={t:$('fTitle').value,d:$('fDetail').value,tag:$('fTag').value,pl:$('fPlace').value,dt:$('fDate').value,rc:$('fRecurrence').value,ty:$('fType').value,pr:$('fPriority').value,st:$('fStatus').value};
         localStorage.setItem(CACHE_KEY,JSON.stringify(v));
       }catch(e){}
     },300);
@@ -3561,13 +3702,14 @@ textarea.f-input{resize:vertical;min-height:76px}
       if(v.tag)$('fTag').value=v.tag;
       if(v.pl)$('fPlace').value=v.pl;
       if(v.dt)$('fDate').value=v.dt;
+      if(v.rc)$('fRecurrence').value=v.rc;
       if(v.ty)$('fType').value=v.ty;
       if(v.pr)$('fPriority').value=v.pr;
       if(v.st)$('fStatus').value=v.st;
     }catch(e){}
   }
   function clearFormCache(){ try{ localStorage.removeItem(CACHE_KEY); }catch(e){} }
-  ['fTitle','fDetail','fTag','fDate','fType','fPriority','fStatus'].forEach(function(id){ var el=$(id); if(el){ el.addEventListener('input',cacheForm); el.addEventListener('change',cacheForm); } });
+  ['fTitle','fDetail','fTag','fDate','fRecurrence','fType','fPriority','fStatus'].forEach(function(id){ var el=$(id); if(el){ el.addEventListener('input',cacheForm); el.addEventListener('change',cacheForm); } });
   var ICON_DEL='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
   document.addEventListener('click', function(e){
     var t=e.target;

@@ -266,6 +266,18 @@ function registerIpc() {
       return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
     } catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
+  ipcMain.handle('ai:translate-to-english', async (e, provider, model, text) => {
+    try {
+      const r = await ai.chat({
+        provider: provider, model: model,
+        messages: [
+          { role: 'system', content: 'You translate live Chinese classroom captions into concise, faithful English. Output only the English translation. Keep technical terms accurate. Do not add explanations or Markdown.' },
+          { role: 'user', content: String(text || '').slice(0, 1200) }
+        ]
+      });
+      return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
+    } catch (err) { return { ok: false, error: String(err.message || err) }; }
+  });
   ipcMain.handle('ai:answer-context', async (e, provider, model, question, context) => {
     try {
       const r = await ai.chat({
