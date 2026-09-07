@@ -645,6 +645,7 @@ body{background:var(--bg);background-image:none}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 @media(max-width:900px){#todayPanel.active{display:block}#todayPanel.active>#agentDock{position:relative;top:auto;margin-top:16px}.agent-dock .chat-wrap,#todayPanel .agent-dock .chat-wrap{height:58vh}.settings-modal .modal{width:100vw;max-width:100vw;min-height:100vh;border-radius:0}.settings-body{flex-direction:column}.settings-side{width:100%;padding:0;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--g1)}.settings-main{padding:16px 0 0}}
 @media(max-width:640px){.ai-row{display:flex!important;align-items:flex-start;flex-wrap:wrap}.set-panel>.set-row{align-items:flex-start;flex-wrap:wrap}.set-row .set-val{margin-left:0;width:100%}}
+@media(max-width:640px){.week-grid{grid-template-columns:repeat(7,minmax(180px,1fr));overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.week-col{min-height:180px;scroll-snap-align:start}.bottom-tabs{box-shadow:0 -8px 24px rgba(16,47,44,.06)}.bt-item{min-height:48px}}
 </style>
 </head>
 <body>
