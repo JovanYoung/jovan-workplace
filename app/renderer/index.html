@@ -941,6 +941,7 @@ textarea.f-input{resize:vertical;min-height:76px}
           </div>
           <div class="learn-tools" id="notesTools">
             <button class="btn btn-sm btn-ghost" id="noteRec">🎙 开始课堂双语字幕</button>
+            <button class="btn btn-sm btn-ghost" id="noteImage">🖼 图片讲题</button>
             <button class="btn btn-sm btn-ghost" id="noteImport">导入文本文件</button>
             <span class="learn-rec-text" id="noteRecText" style="display:none"></span>
           </div>
@@ -950,6 +951,7 @@ textarea.f-input{resize:vertical;min-height:76px}
             <div class="caption-en pending" id="noteCaptionEn">English subtitle is waiting for a configured translation model.</div>
           </div>
           <input type="file" id="noteFile" accept=".txt,.md,.markdown,.text" style="display:none">
+          <input type="file" id="noteImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
           <div id="noteList"></div>
         </div>
       </div>
@@ -2695,9 +2697,18 @@ textarea.f-input{resize:vertical;min-height:76px}
       showResult('译文',j&&j.ok?j.content:('翻译失败：'+((j&&j.error)||'未知')));
     }).catch(function(){ showResult('译文','内置 AI 请求失败，请检查模型配置'); });
   }
+  var ASK_IMAGE=null;
   function sendAsk(){
     var q=$('askQ').value.trim();
     if(!q){ toast('请输入问题'); return; }
+    if(ASK_IMAGE){
+      var image=ASK_IMAGE; ASK_IMAGE=null; $('askMask').className='modal-mask';
+      var imgSel=$('chatModelSel'), imgVal=imgSel&&imgSel.value;
+      if(!hasWP||!imgVal){ toast('请先在 设置 → AI 模型 配置视觉模型'); return; }
+      var imgParts=imgVal.split('|'); showResult('图片讲题中…','正在请求所选模型分析图片…');
+      window.workplace.aiAnswerImage(imgParts[0],imgParts[1],q,image).then(function(j){ showResult('图片讲题',j&&j.ok?j.content:('失败：'+((j&&j.error)||'模型可能不支持视觉输入'))); }).catch(function(){ showResult('图片讲题','图片分析请求失败，请检查视觉模型配置'); });
+      return;
+    }
     var r=null; ALL_ROWS.forEach(function(x){ if(x._id===ASK_TARGET) r=x; });
     if(!r){ toast('未找到课件'); return; }
     var sel=$('chatModelSel'), val=sel&&sel.value;
@@ -3895,6 +3906,7 @@ textarea.f-input{resize:vertical;min-height:76px}
         if(bid==='entityOk'){ entitySave(); return; }
         if(bid==='entityCancel'||bid==='entityClose'){ $('entityMask').className='modal-mask'; return; }
         if(bid==='noteRec'){ startNoteRec(); return; }
+        if(bid==='noteImage'){ $('noteImageFile').click(); return; }
         if(bid==='noteImport'){ $('noteFile').click(); return; }
         if(bid==='learnSave'){ learnSave(); return; }
         if(bid==='learnClose'||bid==='learnCancel'){ $('learnMask').className='modal-mask'; return; }
@@ -3974,6 +3986,14 @@ textarea.f-input{resize:vertical;min-height:76px}
       reader.readAsText(f);
     }
     e.target.value='';
+  });
+  $('noteImageFile').addEventListener('change',function(e){
+    var f=e.target.files&&e.target.files[0];
+    if(!f) return;
+    if(f.size>8*1024*1024){ toast('图片请控制在 8 MB 以内'); e.target.value=''; return; }
+    var reader=new FileReader();
+    reader.onload=function(){ ASK_IMAGE=String(reader.result||''); ASK_TARGET=null; $('askQ').value=''; $('askQ').placeholder='例如：这道题怎么做？图表说明了什么？'; $('askMask').className='modal-mask show'; $('askQ').focus(); };
+    reader.readAsDataURL(f); e.target.value='';
   });
   window.onerror=function(msg,src,line){
     try{

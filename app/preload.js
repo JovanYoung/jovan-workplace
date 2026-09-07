@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('workplace', {
   aiSetCustomModels: (pid, names) => ipcRenderer.invoke('ai:set-custom-models', pid, names),
   aiTranslateText: (provider, model, text) => ipcRenderer.invoke('ai:translate-text', provider, model, text),
   aiTranslateToEnglish: (provider, model, text) => ipcRenderer.invoke('ai:translate-to-english', provider, model, text),
+  aiAnswerImage: (provider, model, question, dataUrl) => ipcRenderer.invoke('ai:answer-image', provider, model, question, dataUrl),
   aiAnswerContext: (provider, model, question, context) => ipcRenderer.invoke('ai:answer-context', provider, model, question, context),
   // Streaming chat: onChunk receives {delta} per token; returns final {ok, content, usage, cost}.
   aiChat: (provider, model, messages, onChunk) => {

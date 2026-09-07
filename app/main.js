@@ -318,6 +318,18 @@ function registerIpc() {
       return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
     } catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
+  ipcMain.handle('ai:answer-image', async (e, provider, model, question, dataUrl) => {
+    try {
+      const image = String(dataUrl || '');
+      if (!/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(image)) return { ok: false, error: '只支持 PNG、JPG、WEBP 或 GIF 图片' };
+      if (image.length > 11 * 1024 * 1024) return { ok: false, error: '图片过大，请选择 8 MB 以内的图片' };
+      const r = await ai.chat({ provider: provider, model: model, messages: [
+        { role: 'system', content: '你是学习讲题助手。根据图片内容严谨回答；看不清时明确说明，不编造。' },
+        { role: 'user', content: [{ type: 'text', text: String(question || '请讲解这张图片。') }, { type: 'image_url', image_url: { url: image } }] }
+      ] });
+      return { ok: true, content: r.content, usage: r.usage, cost: r.cost };
+    } catch (err) { return { ok: false, error: String(err.message || err) }; }
+  });
   ipcMain.handle('ai:answer-context', async (e, provider, model, question, context) => {
     try {
       const r = await ai.chat({
