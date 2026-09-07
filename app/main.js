@@ -14,6 +14,46 @@ const conv = require('./conv.js');
 const mem = require('./mem.js');
 const skills = require('./skills.js');
 
+// Runtime-only reminders: never create Windows tasks or persist expanded
+// recurrence instances. De-duplication is intentionally in memory per run.
+const runtimeReminderSeen = new Set();
+function localDateString(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+function runtimeOccursOn(row, date) {
+  const start = String(row['日期'] || '').slice(0, 10);
+  if (!start || date < start) return false;
+  let rule = row['周期'];
+  if (typeof rule === 'string') { try { rule = JSON.parse(rule); } catch (e) { rule = null; } }
+  if (!rule) return start === date;
+  if (rule.until && date > String(rule.until).slice(0, 10)) return false;
+  const current = new Date(date + 'T00:00:00');
+  const first = new Date(start + 'T00:00:00');
+  if (rule.freq === 'daily') return true;
+  if (rule.freq === 'weekly') return current.getDay() === Number(rule.weekday);
+  if (rule.freq === 'monthly') return current.getDate() === first.getDate();
+  return false;
+}
+function checkRuntimeReminders() {
+  if (!Notification.isSupported()) return;
+  const now = new Date();
+  const day = localDateString(now);
+  const mins = now.getHours() * 60 + now.getMinutes();
+  data.rows().forEach((row) => {
+    if (!row || (row['类型'] !== '日程' && row['类型'] !== '任务') || row['状态'] === '已完成') return;
+    if (!runtimeOccursOn(row, day)) return;
+    const match = String(row['详情'] || '').match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$|[-~至])/);
+    if (!match) return;
+    const due = Number(match[1]) * 60 + Number(match[2]);
+    if (mins < due || mins > due + 4) return;
+    const key = day + '|' + row._id + '|' + match[0].trim();
+    if (runtimeReminderSeen.has(key)) return;
+    runtimeReminderSeen.add(key);
+    new Notification({ title: 'JW 日程提醒', body: String(row['标题'] || '待办事项') + ' · ' + match[0].trim(), icon: path.join(__dirname, 'assets', 'icon.png') }).show();
+  });
+}
+
 const APP_NAME = "Jovan's Workplace";
 const DEFAULT_DATA_DIR = path.join('D:', "Jovan's Workplace", 'data');
 const LEGACY_DATA_FILE = path.join('D:', 'dsh-data', 'workspace.json');
@@ -427,6 +467,8 @@ if (!gotLock) {
     registerIpc();
     createWindow();
     createTray();
+    checkRuntimeReminders();
+    setInterval(checkRuntimeReminders, 60 * 1000);
 
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); else showWin(); });
   });
