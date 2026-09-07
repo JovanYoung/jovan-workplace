@@ -628,6 +628,18 @@ textarea.f-input{resize:vertical;min-height:76px}
 .his-ops button.his-del-armed{border-color:var(--red,#e5484d);color:#fff;background:var(--red,#e5484d)}
 .his-input{flex:1;min-width:0;font-size:13px;color:var(--ink);background:var(--g1);border:1px solid var(--orange);border-radius:6px;padding:4px 8px;outline:none}
 #todayPanel .agent-dock .chat-wrap{height:var(--agent-dock-h,52vh);min-height:0;margin-top:0}
+
+/* ---- 1.3 Calm Study OS: visual-system overrides ---- */
+:root{--bg:#f3f6f3;--surface:#fff;--surface-soft:#f7f9f7;--surface-raised:#fff;--ink:#193c39;--ink2:#294b48;--ink-deep:#102f2c;--g3:#c4d0ca;--g5:#70827c;--control-radius:10px;--r-lg:16px;--r-md:12px;--r-sm:8px;--shadow-soft:0 1px 2px rgba(16,47,44,.05);--shadow:0 8px 28px rgba(16,47,44,.07)}
+body{background:var(--bg);background-image:none}
+.topnav,.topnav:hover,.scrolled .topnav:hover{height:64px;transition:box-shadow .18s ease}.topnav:hover .brand-logo,.topnav:hover .tn-item,.tn-item:hover{transform:none}.topnav:hover .tn-name{font-size:17px}.topnav:hover .tn-nav{gap:4px}.tn-item:hover{background:var(--g1);color:var(--green)}
+.btn:active{transform:translateY(0)}.today-card:hover,.stat-card:hover,.evt-card:hover,.cal-cell:hover,.week-col:hover,.memo-card:hover{transform:translateY(-1px);box-shadow:var(--shadow-soft)}
+.modal{border-radius:16px;border:1px solid var(--g2);box-shadow:var(--shadow);padding:22px}.modal-mask.show .modal{animation:panelIn .18s ease-out}@keyframes panelIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.agent-dock{position:relative;left:auto;bottom:auto;transform:none;width:100%;z-index:1;background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none;border-radius:16px;box-shadow:var(--shadow)}.agent-dock .dock-handle{cursor:default}.agent-dock .chat-wrap,#todayPanel .agent-dock .chat-wrap{height:min(52vh,560px);border-radius:0 0 16px 16px}
+.ripple{display:none!important}.settings-modal .modal{width:min(860px,94vw)}.settings-side{width:168px}.settings-main{padding-left:20px}
+#semList,#subList{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}#semList>.btn-dash,#subList>.btn-dash{grid-column:1/-1}.sem-card{margin:0;border-radius:14px;box-shadow:none}.learn-tools{padding:10px;background:var(--surface-soft);border:1px solid var(--g1);border-radius:12px}.caption-panel{padding:18px;border-radius:14px;background:var(--surface);box-shadow:var(--shadow-soft)}.caption-cn{font-size:18px;line-height:1.65}.caption-en{font-size:15px;line-height:1.6;border-top:1px solid var(--g1);padding-top:10px}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+@media(max-width:900px){.agent-dock .chat-wrap,#todayPanel .agent-dock .chat-wrap{height:58vh}.settings-modal .modal{width:100vw;max-width:100vw;min-height:100vh;border-radius:0}.settings-body{flex-direction:column}.settings-side{width:100%;padding:0;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--g1)}.settings-main{padding:16px 0 0}}
 </style>
 </head>
 <body>
