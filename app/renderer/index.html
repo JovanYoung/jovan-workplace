@@ -2631,9 +2631,10 @@ textarea.f-input{resize:vertical;min-height:76px}
       else noteCaption('中文实时字幕 · 英文翻译失败（中文仍会保存）',noteRecInterim||chunk,'Translation unavailable.',true);
     }).catch(function(){ noteCaption('中文实时字幕 · 英文翻译失败（中文仍会保存）',noteRecInterim||chunk,'Translation unavailable.',true); }).then(function(){ noteTranslateBusy=false; drainNoteTranslation(); });
   }
-  function archiveCaptionNote(){
+  function archiveCaptionNote(englishIncomplete){
     if(!noteRecText.trim()) { $('noteCaptionPanel').style.display='none'; return; }
     var english=noteRecEnglish.trim()||'【未生成英文：未配置或未连接翻译模型】';
+    if(englishIncomplete) english+='\n【部分译文：关闭课堂时仍有英文翻译未完成】';
     var body='【课堂实时双语字幕】\n\n中文原文\n'+noteRecText.trim()+'\n\nEnglish translation\n'+english;
     var props={'标题':{text:'课堂双语笔记 '+todayStr()},'类型':{select:'学习'},'标签':{text:'笔记'},'状态':{select:'待处理'},'日期':{date:todayStr()},'详情':{text:body}};
     var sem=(learnLevel.sem&&learnLevel.sem!=='未分类')?learnLevel.sem:'';
@@ -2650,7 +2651,7 @@ textarea.f-input{resize:vertical;min-height:76px}
       setTimeout(function(){ finishCaptionArchive(attempt+1); },250);
       return;
     }
-    archiveCaptionNote();
+    archiveCaptionNote(hasModel && (noteTranslateBusy || noteTranslateQueue.length));
   }
   function startNoteRec(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -2679,7 +2680,11 @@ textarea.f-input{resize:vertical;min-height:76px}
         var el=$('noteRecText'); el.style.display='none';
         if(noteManualStop){ noteCaption('课堂已结束，正在归档到当前学科…',noteRecText,noteRecEnglish||'English translation may still be finishing.',!noteRecEnglish); finishCaptionArchive(); }
       };
-      recogNote.onerror=function(){ noteRecOn=false; $('noteRec').textContent='🎙 开始课堂双语字幕'; toast('录音失败，请重试'); };
+      recogNote.onerror=function(){
+        noteRecOn=false; $('noteRec').textContent='🎙 开始课堂双语字幕';
+        if(noteRecText.trim()){ noteManualStop=true; toast('录音中断，正在归档已识别字幕'); try{ recogNote.stop(); }catch(e){} }
+        else toast('录音失败，请重试');
+      };
     }
     noteRecOn=true; noteManualStop=false; noteRecText=''; noteRecEnglish=''; noteRecInterim=''; noteTranslateQueue=[]; noteTranslateBusy=false;
     $('noteRec').textContent='■ 停止课堂并自动归档';
@@ -2702,11 +2707,13 @@ textarea.f-input{resize:vertical;min-height:76px}
     var q=$('askQ').value.trim();
     if(!q){ toast('请输入问题'); return; }
     if(ASK_IMAGE){
-      var image=ASK_IMAGE; ASK_IMAGE=null; $('askMask').className='modal-mask';
       var imgSel=$('chatModelSel'), imgVal=imgSel&&imgSel.value;
       if(!hasWP||!imgVal){ toast('请先在 设置 → AI 模型 配置视觉模型'); return; }
-      var imgParts=imgVal.split('|'); showResult('图片讲题中…','正在请求所选模型分析图片…');
-      window.workplace.aiAnswerImage(imgParts[0],imgParts[1],q,image).then(function(j){ showResult('图片讲题',j&&j.ok?j.content:('失败：'+((j&&j.error)||'模型可能不支持视觉输入'))); }).catch(function(){ showResult('图片讲题','图片分析请求失败，请检查视觉模型配置'); });
+      var image=ASK_IMAGE, imgParts=imgVal.split('|'); $('askMask').className='modal-mask'; showResult('图片讲题中…','正在请求所选模型分析图片…');
+      window.workplace.aiAnswerImage(imgParts[0],imgParts[1],q,image).then(function(j){
+        if(j&&j.ok){ ASK_IMAGE=null; showResult('图片讲题',j.content); }
+        else showResult('图片讲题', '失败：'+((j&&j.error)||'模型可能不支持视觉输入')+'。图片仍保留，可更换模型后重新提问。');
+      }).catch(function(){ showResult('图片讲题','图片分析请求失败。图片仍保留，可检查模型后重新提问。'); });
       return;
     }
     var r=null; ALL_ROWS.forEach(function(x){ if(x._id===ASK_TARGET) r=x; });

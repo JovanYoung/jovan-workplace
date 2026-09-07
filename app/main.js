@@ -43,7 +43,7 @@ function checkRuntimeReminders() {
   data.rows().forEach((row) => {
     if (!row || (row['类型'] !== '日程' && row['类型'] !== '任务') || row['状态'] === '已完成') return;
     if (!runtimeOccursOn(row, day)) return;
-    const match = String(row['详情'] || '').match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$|[-~至])/);
+    const match = String(row['详情'] || '').match(/(?:^|[\s:：])([01]?\d|2[0-3]):([0-5]\d)(?=\s|$|[-~至])/);
     if (!match) return;
     const due = Number(match[1]) * 60 + Number(match[2]);
     if (mins < due || mins > due + 4) return;
