@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('workplace', {
   // Subject-AI conversations (M3)
   convList: () => ipcRenderer.invoke('conv:list'),
   convCreate: (subject, title) => ipcRenderer.invoke('conv:create', subject, title),
+  convBranch: (sourceId, forkMessageId, label) => ipcRenderer.invoke('conv:branch', sourceId, forkMessageId, label),
   convOpen: (id) => ipcRenderer.invoke('conv:open', id),
   convRename: (id, title) => ipcRenderer.invoke('conv:rename', id, title),
   convClear: (id) => ipcRenderer.invoke('conv:clear', id),

@@ -5123,7 +5123,7 @@ textarea.f-input{resize:vertical;min-height:76px}
     });
   }
 
-  function appendSubjectMsg(role, text){
+  function appendSubjectMsg(role, text, messageId){
     var log = $('subjectChatLog');
     if(!log) return null;
     var empty = log.querySelector('.chat-empty');
@@ -5132,6 +5132,14 @@ textarea.f-input{resize:vertical;min-height:76px}
     el.className = 'chat-msg ' + role;
     if(role === 'ai' && text){ el.innerHTML = renderMarkdown(text); }
     else el.textContent = text;
+    if(messageId){
+      var fork=document.createElement('button');
+      fork.className='btn btn-sm btn-ghost subject-fork';
+      fork.setAttribute('data-fork-message',messageId);
+      fork.textContent='从此续写';
+      fork.title='创建独立分支，不会混入旁支上下文';
+      el.appendChild(fork);
+    }
     log.appendChild(el);
     log.scrollTop = log.scrollHeight;
     return el;
@@ -5158,8 +5166,8 @@ textarea.f-input{resize:vertical;min-height:76px}
       } else {
         log.innerHTML = '';
         r.messages.forEach(function(m){
-          if(m.role === 'summary') appendSubjectMsg('ai', '📋 历史摘要：' + m.content);
-          else appendSubjectMsg(m.role === 'user' ? 'user' : 'ai', m.content);
+          if(m.role === 'summary') appendSubjectMsg('ai', '📋 历史摘要：' + m.content, m.id);
+          else appendSubjectMsg(m.role === 'user' ? 'user' : 'ai', m.content, m.id);
         });
       }
       setSubjectMeta('');
@@ -5287,6 +5295,16 @@ textarea.f-input{resize:vertical;min-height:76px}
     if(bid('subjectAiSearchBtn')){ subjectSearch(); return; }
     if(bid('subjectChatSend')){ subjectSend(); return; }
     if(bid('subjectChatClear')){ if(subjectAiCurrent) subjectClear(subjectAiCurrent); return; }
+    var fork=t.closest?t.closest('[data-fork-message]'):null;
+    if(fork){
+      var messageId=Number(fork.getAttribute('data-fork-message'));
+      fork.disabled=true; fork.textContent='创建分支…';
+      window.workplace.convBranch(subjectAiCurrent,messageId,'分支 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})).then(function(r){
+        if(r&&r.ok){ toast('已创建独立分支'); renderSubjectList(); selectSubject(r.branch.id); }
+        else { fork.disabled=false; fork.textContent='从此续写'; toast('创建分支失败：'+((r&&r.error)||'未知')); }
+      }).catch(function(){ fork.disabled=false; fork.textContent='从此续写'; toast('创建分支失败'); });
+      return;
+    }
     var hit = t.closest ? t.closest('.search-hit') : null;
     if(hit){ selectSubject(hit.getAttribute('data-conv')); var r=$('subjectAiSearchResults'); if(r){ r.style.display='none'; r.innerHTML=''; } var si=$('subjectAiSearch'); if(si) si.value=''; return; }
     var item = t.closest ? t.closest('.subject-ai-item') : null;

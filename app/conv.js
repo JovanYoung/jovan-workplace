@@ -60,6 +60,9 @@ function init() {
   ensureMessageColumn('is_archived', 'INTEGER NOT NULL DEFAULT 0');
   ensureMessageColumn('replaces_message_id', 'INTEGER');
   ensureMessageColumn('metadata_json', 'TEXT');
+  ensureConversationColumn('parent_conv_id', 'TEXT');
+  ensureConversationColumn('fork_message_id', 'INTEGER');
+  ensureConversationColumn('branch_label', 'TEXT');
   db.prepare("UPDATE messages SET message_uid = 'm_' || id WHERE message_uid IS NULL OR message_uid = ''").run();
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_uid ON messages(message_uid);');
   db.exec('CREATE INDEX IF NOT EXISTS idx_messages_active ON messages(conv_id, is_current, is_archived, ts, id);');
@@ -69,6 +72,10 @@ function init() {
 function ensureMessageColumn(name, declaration) {
   const cols = db.prepare('PRAGMA table_info(messages)').all();
   if (!cols.some(function (c) { return c.name === name; })) db.exec('ALTER TABLE messages ADD COLUMN ' + name + ' ' + declaration);
+}
+function ensureConversationColumn(name, declaration) {
+  const cols = db.prepare('PRAGMA table_info(conversations)').all();
+  if (!cols.some(function (c) { return c.name === name; })) db.exec('ALTER TABLE conversations ADD COLUMN ' + name + ' ' + declaration);
 }
 
 function now() { return Date.now(); }
@@ -86,19 +93,50 @@ function createConversation(subject, title) {
   return { id: id, subject: s, title: ti, created_at: t, updated_at: t };
 }
 
+// A branch owns a private copy of its ancestor chain, so sibling context never
+// reaches later model calls while the original history remains intact.
+function createBranch(sourceId, forkMessageId, label) {
+  init();
+  const source = getConversation(sourceId);
+  if (!source) return { ok: false, error: '源会话不存在' };
+  const fork = db.prepare('SELECT id, ts FROM messages WHERE id = ? AND conv_id = ?').get(forkMessageId, sourceId);
+  if (!fork) return { ok: false, error: '分叉节点不存在' };
+  const id = genId('c');
+  const t = now();
+  const branchLabel = String(label || '').trim() || ('分支 ' + new Date(t).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
+  db.prepare('INSERT INTO conversations (id, subject, title, created_at, updated_at, parent_conv_id, fork_message_id, branch_label) VALUES (?,?,?,?,?,?,?,?)')
+    .run(id, source.subject, branchLabel, t, t, sourceId, forkMessageId, branchLabel);
+  const ancestors = db.prepare('SELECT role, content, ts, is_archived, metadata_json FROM messages WHERE conv_id = ? AND is_current = 1 AND (ts < ? OR (ts = ? AND id <= ?)) ORDER BY ts ASC, id ASC')
+    .all(sourceId, fork.ts, fork.ts, forkMessageId);
+  const insert = db.prepare('INSERT INTO messages (message_uid, conv_id, role, content, ts, is_archived, metadata_json) VALUES (?,?,?,?,?,?,?)');
+  const insertFts = db.prepare('INSERT INTO messages_fts (rowid, content) VALUES (?,?)');
+  try {
+    db.exec('BEGIN IMMEDIATE');
+    ancestors.forEach(function (m) {
+      const r = insert.run(genId('m'), id, m.role, m.content, m.ts, m.is_archived || 0, m.metadata_json || null);
+      insertFts.run(r.lastInsertRowid, m.content);
+    });
+    db.exec('COMMIT');
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch (e) {}
+    return { ok: false, error: String(err.message || err) };
+  }
+  return { ok: true, branch: { id: id, subject: source.subject, title: branchLabel, parent_conv_id: sourceId, fork_message_id: forkMessageId, branch_label: branchLabel, created_at: t, updated_at: t }, copied_messages: ancestors.length };
+}
+
 function listConversations() {
   init();
-  const convs = db.prepare('SELECT id, subject, title, created_at, updated_at FROM conversations ORDER BY updated_at DESC').all();
+  const convs = db.prepare('SELECT id, subject, title, created_at, updated_at, parent_conv_id, fork_message_id, branch_label FROM conversations ORDER BY updated_at DESC').all();
   const countStmt = db.prepare('SELECT COUNT(*) AS n FROM messages WHERE conv_id = ?');
   return convs.map(function (c) {
     const row = countStmt.get(c.id);
-    return { id: c.id, subject: c.subject, title: c.title, created_at: c.created_at, updated_at: c.updated_at, msg_count: row ? row.n : 0 };
+    return { id: c.id, subject: c.subject, title: c.title, created_at: c.created_at, updated_at: c.updated_at, parent_conv_id: c.parent_conv_id || null, fork_message_id: c.fork_message_id || null, branch_label: c.branch_label || null, msg_count: row ? row.n : 0 };
   });
 }
 
 function getConversation(id) {
   init();
-  return db.prepare('SELECT id, subject, title, created_at, updated_at FROM conversations WHERE id = ?').get(id) || null;
+  return db.prepare('SELECT id, subject, title, created_at, updated_at, parent_conv_id, fork_message_id, branch_label FROM conversations WHERE id = ?').get(id) || null;
 }
 
 function renameConversation(id, title) {
@@ -405,6 +443,7 @@ function search(q) {
 module.exports = {
   init,
   createConversation,
+  createBranch,
   listConversations,
   loadConversation,
   getConversation,

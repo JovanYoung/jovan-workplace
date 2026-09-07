@@ -373,6 +373,7 @@ function registerIpc() {
   // ---- Subject-AI conversations (M3: conv.js + SQLite) ----
   ipcMain.handle('conv:list', () => conv.listConversations());
   ipcMain.handle('conv:create', (e, subject, title) => conv.createConversation(subject, title));
+  ipcMain.handle('conv:branch', (e, sourceId, forkMessageId, label) => conv.createBranch(sourceId, forkMessageId, label));
   ipcMain.handle('conv:open', (e, id) => conv.loadConversation(id));
   ipcMain.handle('conv:rename', (e, id, title) => conv.renameConversation(id, title));
   ipcMain.handle('conv:clear', (e, id) => conv.clearConversation(id));
